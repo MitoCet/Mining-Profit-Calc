@@ -23,6 +23,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 	public final Tracker tracker = new Tracker(() -> prices);
 	public Config config;
 	private Path configFile;
+	private Path pricesFile;
 	private Hud hud;
 	private int ticks;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
@@ -55,6 +58,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		configFile = FabricLoader.getInstance().getConfigDir().resolve("mining-profit-calc.json");
 		config = Config.load(configFile);
+		// Start with the values saved last time, so the box works at once (and offline) until the
+		// fresh ones arrive.
+		pricesFile = FabricLoader.getInstance().getConfigDir().resolve("mining-profit-calc-values.json");
+		try {
+			if (Files.exists(pricesFile)) prices = Prices.parse(Files.readString(pricesFile, StandardCharsets.UTF_8));
+		} catch (Exception e) {
+			LOG.warn("Could not read saved mining values: {}", e.toString());
+		}
 		tracker.totalCoins = config.totalCoins;
 		tracker.totalMs = config.totalMs;
 		tracker.sessionCoins = config.sessionCoins;
@@ -181,6 +192,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
 			if (res.statusCode() != 200) throw new IllegalStateException("HTTP " + res.statusCode());
 			prices = Prices.parse(res.body());
+			Files.writeString(pricesFile, res.body(), StandardCharsets.UTF_8);
 			LOG.info("Mining values loaded");
 		} catch (Exception e) {
 			LOG.warn("Could not load mining values: {}", e.toString());
