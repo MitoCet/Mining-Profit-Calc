@@ -134,14 +134,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 					return say(c, "Kutuda " + (config.sessionTab ? "Session" : "Toplam") + " gösteriliyor.");
 				}))
 				.then(ClientCommands.literal("gizle").executes((c) -> {
-					config.hidden = true;
+					config.showStopped = false;
 					save();
-					return say(c, "Kutu gizlendi. Göstermek için /kazanc goster.");
+					return say(c, "Kutu sadece session çalışırken görünecek.");
 				}))
 				.then(ClientCommands.literal("goster").executes((c) -> {
-					config.hidden = false;
+					config.showStopped = true;
 					save();
-					return say(c, "Kutu gösteriliyor.");
+					return say(c, "Kutu session durmuşken de görünecek. Gizlemek için /kazanc gizle.");
 				}))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
 					refreshPricesAsync();

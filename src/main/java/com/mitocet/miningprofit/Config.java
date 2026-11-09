@@ -17,8 +17,10 @@ public final class Config {
 	public long sessionMs;
 	public int x = 4;
 	public int y = 40;
+	public float scale = 1f;
 	public boolean sessionTab = true;
-	public boolean hidden;
+	/** Show the box also while no session runs (/kazanc goster, /kazanc gizle). */
+	public boolean showStopped;
 
 	public static Config load(Path file) {
 		try {

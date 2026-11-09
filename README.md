@@ -18,10 +18,10 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc` | Session ve toplam özeti |
 | `/kazanc sekme` | Kutuda Session / Toplam arasında geçiş |
 | `/kazanc sifirla` | Toplam kazancı sıfırlar |
-| `/kazanc gizle`, `/kazanc goster` | Kutuyu gizler / gösterir |
+| `/kazanc goster`, `/kazanc gizle` | Session durmuşken de kutuyu gösterir / gizler (çalışırken kutu hep görünür) |
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır |
 
-T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin.
+Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin.
 
 ## Neyi sayar
 

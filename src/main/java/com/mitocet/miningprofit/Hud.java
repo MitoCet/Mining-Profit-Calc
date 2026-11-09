@@ -4,10 +4,12 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.ChatScreen;
 
 /**
  * The small box: two tabs (Session / Toplam), earned coins and coins per hour.
- * While the chat is open (T), the box can be dragged with the mouse and a tab clicked.
+ * Shown while a session runs (when stopped only after /kazanc goster). While the chat is open (T), the box can be dragged, resized
+ * from its bottom right corner, and a tab clicked.
  */
 public final class Hud {
 	private static final int PAD = 4;
@@ -21,12 +23,18 @@ public final class Hud {
 	private static final int WARN = 0xFFFFAA33;
 	/** The collector runs every 15 minutes; values older than this are called out. */
 	private static final long STALE_MS = 60 * 60_000;
+	private static final int HANDLE = 5;
+	private static final int HANDLE_COLOR = 0xFFFFFFFF;
+	private static final float MIN_SCALE = 0.5f;
+	private static final float MAX_SCALE = 3f;
 
 	private final MiningProfitClient mod;
 	private int width = 120;
 	private int height = 4 * LINE + 2 * PAD;
 	private int sessionTabEnd;
 	private boolean dragging;
+	private boolean resizing;
+	private boolean visible;
 	private double grabX;
 	private double grabY;
 
@@ -36,10 +44,15 @@ public final class Hud {
 
 	public void render(GuiGraphicsExtractor g, DeltaTracker delta) {
 		Config cfg = mod.config;
-		if (cfg.hidden) return;
+		Tracker t = mod.tracker;
+		// Shown while a session runs; when stopped only if asked for (/kazanc goster).
+		if (!t.running() && !cfg.showStopped) {
+			visible = false;
+			return;
+		}
+		visible = true;
 		Minecraft mc = Minecraft.getInstance();
 		Font font = mc.font;
-		Tracker t = mod.tracker;
 		long now = System.currentTimeMillis();
 
 		boolean session = cfg.sessionTab;
@@ -64,37 +77,62 @@ public final class Hud {
 		height = (l4 == null ? 4 : 5) * LINE + 2 * PAD;
 		width = w + 2 * PAD;
 		clamp(mc);
-		int x = cfg.x;
-		int y = cfg.y;
-		g.fill(x, y, x + width, y + height, BG);
-		g.text(font, tabA, x + PAD, y + PAD, session ? TAB_ON : TAB_OFF, true);
-		g.text(font, tabB, x + PAD + sessionTabEnd, y + PAD, session ? TAB_OFF : TAB_ON, true);
-		g.text(font, l1, x + PAD, y + PAD + LINE, GOOD, true);
-		g.text(font, l2, x + PAD, y + PAD + 2 * LINE, TEXT, true);
-		g.text(font, l3, x + PAD, y + PAD + 3 * LINE, t.running() ? TEXT : MUTED, true);
-		if (l4 != null) g.text(font, l4, x + PAD, y + PAD + 4 * LINE, WARN, true);
+
+		// Drawn at size 1 and scaled, so the whole box (text too) grows or shrinks.
+		float scale = cfg.scale;
+		g.pose().pushMatrix();
+		g.pose().translate(cfg.x, cfg.y);
+		g.pose().scale(scale, scale);
+		g.fill(0, 0, width, height, BG);
+		g.text(font, tabA, PAD, PAD, session ? TAB_ON : TAB_OFF, true);
+		g.text(font, tabB, PAD + sessionTabEnd, PAD, session ? TAB_OFF : TAB_ON, true);
+		g.text(font, l1, PAD, PAD + LINE, GOOD, true);
+		g.text(font, l2, PAD, PAD + 2 * LINE, TEXT, true);
+		g.text(font, l3, PAD, PAD + 3 * LINE, t.running() ? TEXT : MUTED, true);
+		if (l4 != null) g.text(font, l4, PAD, PAD + 4 * LINE, WARN, true);
+		// Resize handle in the bottom right corner, only while the chat is open.
+		if (mc.screen instanceof ChatScreen) {
+			for (int i = 0; i < HANDLE; i++) g.fill(width - 1 - i, height - HANDLE + i, width, height - HANDLE + i + 1, HANDLE_COLOR);
+		}
+		g.pose().popMatrix();
+	}
+
+	private int scaledW() {
+		return Math.round(width * mod.config.scale);
+	}
+
+	private int scaledH() {
+		return Math.round(height * mod.config.scale);
 	}
 
 	private void clamp(Minecraft mc) {
 		Config cfg = mod.config;
+		if (!(cfg.scale >= MIN_SCALE && cfg.scale <= MAX_SCALE)) cfg.scale = 1f;
 		int sw = mc.getWindow().getGuiScaledWidth();
 		int sh = mc.getWindow().getGuiScaledHeight();
-		cfg.x = Math.max(0, Math.min(cfg.x, sw - width));
-		cfg.y = Math.max(0, Math.min(cfg.y, sh - height));
+		cfg.x = Math.max(0, Math.min(cfg.x, sw - scaledW()));
+		cfg.y = Math.max(0, Math.min(cfg.y, sh - scaledH()));
 	}
 
 	private boolean inside(double mx, double my) {
 		Config cfg = mod.config;
-		return !cfg.hidden && mx >= cfg.x && mx < cfg.x + width && my >= cfg.y && my < cfg.y + height;
+		return visible && mx >= cfg.x && mx < cfg.x + scaledW() && my >= cfg.y && my < cfg.y + scaledH();
 	}
 
 	/** Mouse down in the chat screen. Returns true when the box took the click. */
 	public boolean click(double mx, double my, int button) {
 		if (button != 0 || !inside(mx, my)) return false;
 		Config cfg = mod.config;
+		double lx = (mx - cfg.x) / cfg.scale;
+		double ly = (my - cfg.y) / cfg.scale;
+		// The bottom right corner resizes.
+		if (lx >= width - HANDLE - 2 && ly >= height - HANDLE - 2) {
+			resizing = true;
+			return true;
+		}
 		// A click on a tab label switches tabs; anywhere else starts a drag.
-		if (my < cfg.y + PAD + LINE) {
-			boolean onSession = mx < cfg.x + PAD + sessionTabEnd;
+		if (ly < PAD + LINE) {
+			boolean onSession = lx < PAD + sessionTabEnd;
 			if (onSession != cfg.sessionTab) {
 				cfg.sessionTab = onSession;
 				mod.save();
@@ -108,14 +146,20 @@ public final class Hud {
 
 	/** Called every frame while the chat screen is open. */
 	public void drag(double mx, double my) {
-		if (!dragging) return;
-		mod.config.x = (int) Math.round(mx - grabX);
-		mod.config.y = (int) Math.round(my - grabY);
+		Config cfg = mod.config;
+		if (resizing) {
+			float s = (float) Math.max((mx - cfg.x) / width, (my - cfg.y) / height);
+			cfg.scale = Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, s)) * 20) / 20f;
+		} else if (dragging) {
+			cfg.x = (int) Math.round(mx - grabX);
+			cfg.y = (int) Math.round(my - grabY);
+		}
 	}
 
 	public boolean release() {
-		if (!dragging) return false;
+		if (!dragging && !resizing) return false;
 		dragging = false;
+		resizing = false;
 		mod.save();
 		return true;
 	}
