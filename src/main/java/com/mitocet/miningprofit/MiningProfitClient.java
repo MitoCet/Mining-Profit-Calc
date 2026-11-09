@@ -89,10 +89,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "box"), hud::render);
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
 			if (!(screen instanceof ChatScreen)) return;
+			hud.chatOpen = true;
 			ScreenMouseEvents.allowMouseClick(screen).register((s, e) -> !hud.click(e.x(), e.y(), e.button()));
 			ScreenMouseEvents.allowMouseRelease(screen).register((s, e) -> !hud.release());
 			ScreenEvents.afterExtract(screen).register((s, g, mx, my, delta) -> hud.drag(mx, my));
-			ScreenEvents.remove(screen).register((s) -> hud.release());
+			ScreenEvents.remove(screen).register((s) -> {
+				hud.chatOpen = false;
+				hud.release();
+			});
 		});
 
 		// Save every 30 seconds while running, so a crash loses little.

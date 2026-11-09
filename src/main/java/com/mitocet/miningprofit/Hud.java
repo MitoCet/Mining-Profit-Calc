@@ -4,7 +4,6 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.ChatScreen;
 
 /**
  * The small box: two tabs (Session / Toplam), earned coins and coins per hour.
@@ -35,6 +34,8 @@ public final class Hud {
 	private boolean dragging;
 	private boolean resizing;
 	private boolean visible;
+	/** Set by the chat screen's open and close events. */
+	public boolean chatOpen;
 	private double grabX;
 	private double grabY;
 
@@ -91,7 +92,7 @@ public final class Hud {
 		g.text(font, l3, PAD, PAD + 3 * LINE, t.running() ? TEXT : MUTED, true);
 		if (l4 != null) g.text(font, l4, PAD, PAD + 4 * LINE, WARN, true);
 		// Resize handle in the bottom right corner, only while the chat is open.
-		if (mc.screen instanceof ChatScreen) {
+		if (chatOpen) {
 			for (int i = 0; i < HANDLE; i++) g.fill(width - 1 - i, height - HANDLE + i, width, height - HANDLE + i + 1, HANDLE_COLOR);
 		}
 		g.pose().popMatrix();
