@@ -18,6 +18,9 @@ public final class Hud {
 	private static final int TEXT = 0xFFFFFFFF;
 	private static final int GOOD = 0xFF6BE36B;
 	private static final int MUTED = 0xFFAAAAAA;
+	private static final int WARN = 0xFFFFAA33;
+	/** The collector runs every 15 minutes; values older than this are called out. */
+	private static final long STALE_MS = 60 * 60_000;
 
 	private final MiningProfitClient mod;
 	private int width = 120;
@@ -49,8 +52,16 @@ public final class Hud {
 		String l3 = !mod.prices().loaded() ? "Fiyatlar yükleniyor…"
 			: (t.running() ? "● " : "■ Durdu · ") + Format.time(ms);
 
+		// Saved values from an earlier game, or values the collector hasn't renewed for a while.
+		Prices p = mod.prices();
+		long age = p.loaded() && p.timestamp > 0 ? now - p.timestamp * 1000 : 0;
+		String l4 = p.loaded() && (!mod.pricesFresh || age > STALE_MS)
+			? "⚠ Fiyatlar güncel değil" + (age > 0 ? " (" + Format.time(age) + " önce)" : "") : null;
+
 		sessionTabEnd = font.width(tabA) + 6;
 		int w = Math.max(sessionTabEnd + font.width(tabB), Math.max(font.width(l1), Math.max(font.width(l2), font.width(l3))));
+		if (l4 != null) w = Math.max(w, font.width(l4));
+		height = (l4 == null ? 4 : 5) * LINE + 2 * PAD;
 		width = w + 2 * PAD;
 		clamp(mc);
 		int x = cfg.x;
@@ -61,6 +72,7 @@ public final class Hud {
 		g.text(font, l1, x + PAD, y + PAD + LINE, GOOD, true);
 		g.text(font, l2, x + PAD, y + PAD + 2 * LINE, TEXT, true);
 		g.text(font, l3, x + PAD, y + PAD + 3 * LINE, t.running() ? TEXT : MUTED, true);
+		if (l4 != null) g.text(font, l4, x + PAD, y + PAD + 4 * LINE, WARN, true);
 	}
 
 	private void clamp(Minecraft mc) {

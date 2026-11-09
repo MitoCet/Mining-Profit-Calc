@@ -50,6 +50,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private int ticks;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
 
+	/** False until values were downloaded in this game session (only the saved ones are in use). */
+	public volatile boolean pricesFresh;
+
 	public Prices prices() {
 		return prices;
 	}
@@ -192,6 +195,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
 			if (res.statusCode() != 200) throw new IllegalStateException("HTTP " + res.statusCode());
 			prices = Prices.parse(res.body());
+			pricesFresh = true;
 			Files.writeString(pricesFile, res.body(), StandardCharsets.UTF_8);
 			LOG.info("Mining values loaded");
 		} catch (Exception e) {
