@@ -1,0 +1,23 @@
+{
+	"schemaVersion": 1,
+	"id": "miningprofit",
+	"version": "${version}",
+	"name": "Mining Profit Calc",
+	"description": "Hypixel SkyBlock: mining kazancını sitedeki en kârlı satış yoluyla sayar. Sadece bilgi gösterir.",
+	"authors": ["MitoCet"],
+	"contact": {
+		"homepage": "https://mitocet.github.io/skyblock-forge-flip/",
+		"sources": "https://github.com/MitoCet/Mining-Profit-Calc"
+	},
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.mitocet.miningprofit.MiningProfitClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
