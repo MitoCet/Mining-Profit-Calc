@@ -36,3 +36,8 @@ Mod son indirdiği değerleri kaydeder; oyun açılınca önce onları kullanır
 ## Derleme
 
 GitHub Actions her push'ta derler; `main` dalındaki her derleme Releases'a eklenir. Yerelde: `./gradlew build` (Java 25).
+
+## Bilinen sınırlar
+
+- Sack'e mining dışında giren itemler de sayılır: sandıktan ya da `/pickupstash` ile sack'e koyduğun, Bazaar'dan alıp sack'e giden Mining malzemeleri kazanç gibi görünür. Bunları yaparken session'ı durdur (`/kazanc dur`, sonra `/kazanc devam`).
+- Sack ve corpse mesajlarının biçimi oyunda denenerek doğrulanmadı; Hypixel biçimi farklıysa sayım 0 kalabilir.

@@ -6,6 +6,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -99,6 +100,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 			});
 		});
 
+		// Closing the game ends a running session's time here; the next game starts stopped.
+		ClientLifecycleEvents.CLIENT_STOPPING.register((client) -> save());
 		// Save every 30 seconds while running, so a crash loses little.
 		ClientTickEvents.END_CLIENT_TICK.register((client) -> {
 			if (++ticks >= 600) {
