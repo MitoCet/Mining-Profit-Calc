@@ -109,6 +109,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				.then(ClientCommands.literal("baslat").executes((c) -> {
 					tracker.start(System.currentTimeMillis());
 					save();
+					refreshPricesAsync();
 					return say(c, "Yeni session başladı. Sack ve corpse kazançları sayılıyor.");
 				}))
 				.then(ClientCommands.literal("dur").executes((c) -> {
