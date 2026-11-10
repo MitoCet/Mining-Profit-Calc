@@ -5,10 +5,16 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 /**
- * The small box: two tabs (Session / Toplam), earned coins and coins per hour.
+ * The box: two tabs (Session / Toplam) and a [+]/[−] button for the big or small box.
+ * Small: earned coins and coins per hour. Big: above those, coins per category (Gemstone,
+ * Dwarven Metal…); clicking a category lists what it was earned from.
  * Shown while a session runs (when stopped only after /kazanc goster). While the chat is open (T), the box can be dragged, resized
- * from its bottom right corner, and a tab clicked.
+ * from its bottom right corner, and a tab, the [+]/[−] button or a category clicked.
  */
 public final class Hud {
 	private static final int PAD = 4;
@@ -20,6 +26,7 @@ public final class Hud {
 	private static final int GOOD = 0xFF6BE36B;
 	private static final int MUTED = 0xFFAAAAAA;
 	private static final int WARN = 0xFFFFAA33;
+	private static final int HEAD = 0xFFFFD24A;
 	/** The collector runs every 15 minutes; values older than this are called out. */
 	private static final long STALE_MS = 60 * 60_000;
 	private static final int HANDLE = 5;
@@ -31,6 +38,9 @@ public final class Hud {
 	private int width = 120;
 	private int height = 4 * LINE + 2 * PAD;
 	private int sessionTabEnd;
+	private int toggleX;
+	/** Category of each line under the tab row (null when the line is not a heading). */
+	private List<String> lineCats = new ArrayList<>();
 	private boolean dragging;
 	private boolean resizing;
 	private boolean visible;
@@ -42,6 +52,9 @@ public final class Hud {
 	public Hud(MiningProfitClient mod) {
 		this.mod = mod;
 	}
+
+	/** One text line of the box; cat is set on a category heading (a click opens or closes it). */
+	private record Line(String text, int color, String cat) {}
 
 	public void render(GuiGraphicsExtractor g, DeltaTracker delta) {
 		Config cfg = mod.config;
@@ -59,24 +72,46 @@ public final class Hud {
 		boolean session = cfg.sessionTab;
 		double coins = session ? t.sessionCoins : t.totalCoins;
 		long ms = session ? t.sessionMs(now) : t.totalMs(now);
+		Breakdown bd = session ? t.sessionBreakdown : t.totalBreakdown;
 		String tabA = "Session";
 		String tabB = "Toplam";
-		String l1 = "Kazanç: " + Format.coins(coins);
-		String l2 = "Saatlik: " + Format.coins(Tracker.perHour(coins, ms)) + "/sa";
-		String l3 = !mod.prices().loaded() ? "Fiyatlar yükleniyor…"
-			: (t.running() ? "● " : "■ Durdu · ") + Format.time(ms);
+		String toggle = cfg.big ? "[-]" : "[+]";
+
+		List<Line> lines = new ArrayList<>();
+		// Big box: categories with their coins, most first; an opened one lists what was earned.
+		if (cfg.big) {
+			List<String> cats = bd.categories();
+			if (cats.isEmpty()) lines.add(new Line("Henüz kazanç yok", MUTED, null));
+			for (String cat : cats) {
+				boolean open = cfg.open.contains(cat);
+				lines.add(new Line((open ? "▼ " : "▶ ") + cat + " · " + Format.coins(bd.total(cat)), HEAD, cat));
+				if (open) {
+					for (Map.Entry<String, Breakdown.Row> r : bd.rows(cat)) {
+						lines.add(new Line("  " + Breakdown.rowText(r.getKey(), r.getValue()), TEXT, null));
+					}
+				}
+			}
+		}
+		lines.add(new Line("Kazanç: " + Format.coins(coins), GOOD, null));
+		lines.add(new Line("Saatlik: " + Format.coins(Tracker.perHour(coins, ms)) + "/sa", TEXT, null));
+		if (!mod.prices().loaded()) lines.add(new Line("Fiyatlar yükleniyor…", MUTED, null));
+		else lines.add(new Line((t.running() ? "● " : "■ Durdu · ") + Format.time(ms), t.running() ? TEXT : MUTED, null));
 
 		// Saved values from an earlier game, or values the collector hasn't renewed for a while.
 		Prices p = mod.prices();
 		long age = p.loaded() && p.timestamp > 0 ? now - p.timestamp * 1000 : 0;
-		String l4 = p.loaded() && (!mod.pricesFresh || age > STALE_MS)
-			? "⚠ Fiyatlar güncel değil" + (age > 0 ? " (" + Format.time(age) + " önce)" : "") : null;
+		if (p.loaded() && (!mod.pricesFresh || age > STALE_MS)) {
+			lines.add(new Line("⚠ Fiyatlar güncel değil" + (age > 0 ? " (" + Format.time(age) + " önce)" : ""), WARN, null));
+		}
 
 		sessionTabEnd = font.width(tabA) + 6;
-		int w = Math.max(sessionTabEnd + font.width(tabB), Math.max(font.width(l1), Math.max(font.width(l2), font.width(l3))));
-		if (l4 != null) w = Math.max(w, font.width(l4));
-		height = (l4 == null ? 4 : 5) * LINE + 2 * PAD;
+		int w = sessionTabEnd + font.width(tabB) + 8 + font.width(toggle);
+		for (Line l : lines) w = Math.max(w, font.width(l.text));
 		width = w + 2 * PAD;
+		height = (lines.size() + 1) * LINE + 2 * PAD;
+		toggleX = width - PAD - font.width(toggle);
+		lineCats = new ArrayList<>();
+		for (Line l : lines) lineCats.add(l.cat);
 		clamp(mc);
 
 		// Drawn at size 1 and scaled, so the whole box (text too) grows or shrinks.
@@ -87,10 +122,8 @@ public final class Hud {
 		g.fill(0, 0, width, height, BG);
 		g.text(font, tabA, PAD, PAD, session ? TAB_ON : TAB_OFF, true);
 		g.text(font, tabB, PAD + sessionTabEnd, PAD, session ? TAB_OFF : TAB_ON, true);
-		g.text(font, l1, PAD, PAD + LINE, GOOD, true);
-		g.text(font, l2, PAD, PAD + 2 * LINE, TEXT, true);
-		g.text(font, l3, PAD, PAD + 3 * LINE, t.running() ? TEXT : MUTED, true);
-		if (l4 != null) g.text(font, l4, PAD, PAD + 4 * LINE, WARN, true);
+		g.text(font, toggle, toggleX, PAD, TAB_OFF, true);
+		for (int i = 0; i < lines.size(); i++) g.text(font, lines.get(i).text, PAD, PAD + (i + 1) * LINE, lines.get(i).color, true);
 		// Resize handle in the bottom right corner, only while the chat is open.
 		if (chatOpen) {
 			for (int i = 0; i < HANDLE; i++) g.fill(width - 1 - i, height - HANDLE + i, width, height - HANDLE + i + 1, HANDLE_COLOR);
@@ -129,6 +162,20 @@ public final class Hud {
 		// The bottom right corner resizes.
 		if (lx >= width - HANDLE - 2 && ly >= height - HANDLE - 2) {
 			resizing = true;
+			return true;
+		}
+		// [+]/[−] switches between the big and the small box.
+		if (ly < PAD + LINE && lx >= toggleX - 2) {
+			cfg.big = !cfg.big;
+			mod.save();
+			return true;
+		}
+		// A category heading opens or closes.
+		int idx = (int) Math.floor((ly - PAD) / LINE) - 1;
+		if (idx >= 0 && idx < lineCats.size() && lineCats.get(idx) != null) {
+			String cat = lineCats.get(idx);
+			if (!cfg.open.remove(cat)) cfg.open.add(cat);
+			mod.save();
 			return true;
 		}
 		// A click on a tab label switches tabs; anywhere else starts a drag.

@@ -74,6 +74,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 		tracker.totalMs = config.totalMs;
 		tracker.sessionCoins = config.sessionCoins;
 		tracker.sessionMs = config.sessionMs;
+		if (config.sessionBreakdown != null) tracker.sessionBreakdown = config.sessionBreakdown;
+		if (config.totalBreakdown != null) tracker.totalBreakdown = config.totalBreakdown;
+		if (config.open == null) config.open = new java.util.HashSet<>();
 
 		ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor((r) -> {
 			Thread t = new Thread(r, "miningprofit-prices");
@@ -150,6 +153,16 @@ public final class MiningProfitClient implements ClientModInitializer {
 					save();
 					return say(c, "Kutu session durmuşken de görünecek. Gizlemek için /kazanc gizle.");
 				}))
+				.then(ClientCommands.literal("buyuk").executes((c) -> {
+					config.big = true;
+					save();
+					return say(c, "Kutu büyük: kazanç başlıklara ayrılmış. Başlığa tıklayınca (T ile) açılır.");
+				}))
+				.then(ClientCommands.literal("kucuk").executes((c) -> {
+					config.big = false;
+					save();
+					return say(c, "Kutu küçük: sadece kazanç ve saatlik.");
+				}))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
 					refreshPricesAsync();
 					return say(c, "Fiyatlar siteden yeniden alınıyor.");
@@ -217,6 +230,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		config.totalMs = tracker.totalMs(now);
 		config.sessionCoins = tracker.sessionCoins;
 		config.sessionMs = tracker.sessionMs(now);
+		config.sessionBreakdown = tracker.sessionBreakdown;
+		config.totalBreakdown = tracker.totalBreakdown;
 		config.save(configFile);
 	}
 }

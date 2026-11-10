@@ -19,14 +19,18 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc sekme` | Kutuda Session / Toplam arasında geçiş |
 | `/kazanc sifirla` | Toplam kazancı sıfırlar |
 | `/kazanc goster`, `/kazanc gizle` | Session durmuşken de kutuyu gösterir / gizler (çalışırken kutu hep görünür) |
+| `/kazanc buyuk`, `/kazanc kucuk` | Kutuyu büyük (başlıklara ayrılmış kazanç) ya da küçük (kazanç, saatlik, süre) yapar |
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır |
 
-Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin.
+Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
+
+Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril, Titanium, Tungsten, Umber), Corpse Loot, Fiesta (Glossy Gemstone, Refined Mineral), Diğer (Glacite, Hard Stone, Suspicious Scrap). En çok kazandıran üstte, kazancı olmayan başlık görünmez. Başlığa tıklayınca açılır ve neyden kaç tane geldiği yazar (ör. `Ruby: 1.200 Rough, 15 Flawed · 45,0k`). Session sekmesi bu session'ı, Toplam sekmesi tüm zamanları gösterir. Açık başlıklar ve kutu boyu oyun kapanınca da hatırlanır.
 
 ## Neyi sayar
 
 - **Sack mesajları** (`[Sacks] +1,234 items`): sitedeki Mining sekmesinde olan malzemeler (Tungsten, Umber, Glacite, Mithril, Titanium, Hard Stone, Refined Mineral, Glossy Gemstone, Suspicious Scrap) ve gemstone'lar. Ham → Enchanted craftlamak kazanç sayılmaz, sack'ten bir şey çıkarmak eksi yazmaz.
 - **Frozen corpse loot'u**: ödül listesindeki fiyatı olan her item, envantere düşenler dahil. Corpse'tan gelip sack'e giren itemler iki kez sayılmaz.
+- Compact'tan düşen Enchanted itemler ve Pristine'den düşen Flawed gemler sack'e girince kendi değerleriyle sayılır (sack doluyken envantere düşenler sayılmaz).
 - Harcamalar (anahtarlar dahil) düşülmez.
 
 ## Değerler nereden geliyor

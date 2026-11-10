@@ -36,6 +36,9 @@ public final class Tracker {
 	// The current session.
 	public double sessionCoins;
 	public long sessionMs;
+	// What the coins came from, for the big box (session and all time).
+	public Breakdown sessionBreakdown = new Breakdown();
+	public Breakdown totalBreakdown = new Breakdown();
 	private long runningSince = -1;
 
 	// Corpse loot being read, and mining items from loot still expected in a sack message.
@@ -45,6 +48,8 @@ public final class Tracker {
 	private final Map<String, Credit> credits = new HashMap<>();
 
 	private record Credit(double count, long until) {}
+
+	private record Part(Prices.Item item, double amount) {}
 
 	public Tracker(Supplier<Prices> prices) {
 		this.prices = prices;
@@ -58,6 +63,7 @@ public final class Tracker {
 	public void start(long now) {
 		sessionCoins = 0;
 		sessionMs = 0;
+		sessionBreakdown.clear();
 		runningSince = now;
 		credits.clear();
 	}
@@ -81,6 +87,7 @@ public final class Tracker {
 		}
 		totalCoins = 0;
 		totalMs = 0;
+		totalBreakdown.clear();
 	}
 
 	public long sessionMs(long now) {
@@ -101,6 +108,16 @@ public final class Tracker {
 		totalCoins += coins;
 	}
 
+	private void note(String cat, String row, String unit, double count) {
+		sessionBreakdown.addCount(cat, row, unit, count);
+		totalBreakdown.addCount(cat, row, unit, count);
+	}
+
+	private void noteCoins(String cat, String row, double coins) {
+		sessionBreakdown.addCoins(cat, row, coins);
+		totalBreakdown.addCoins(cat, row, coins);
+	}
+
 	// ---------- sacks ----------
 	/** Coins counted from one sack message, given all of its hover texts. */
 	public double onSackMessage(List<String> hoverTexts, long now) {
@@ -108,6 +125,7 @@ public final class Tracker {
 		Prices p = prices.get();
 		dropOldCredits(now);
 		Map<String, Double> byFamily = new HashMap<>();
+		Map<String, List<Part>> parts = new HashMap<>();
 		for (String hover : hoverTexts) {
 			for (String line : hover.split("\n")) {
 				Matcher m = SACK_LINE.matcher(strip(line));
@@ -117,10 +135,20 @@ public final class Tracker {
 				if (item == null || !item.mining()) continue;
 				if (amount > 0) amount -= useCredit(item.id(), amount);
 				byFamily.merge(item.family(), amount * item.value(), Double::sum);
+				parts.computeIfAbsent(item.family(), (k) -> new ArrayList<>()).add(new Part(item, amount));
 			}
 		}
 		double coins = 0;
-		for (double v : byFamily.values()) if (v > 0) coins += v;
+		for (Map.Entry<String, Double> e : byFamily.entrySet()) {
+			double v = e.getValue();
+			if (v <= 0) continue;
+			coins += v;
+			String fam = e.getKey();
+			String cat = Breakdown.category(fam);
+			String row = Breakdown.rowName(fam);
+			for (Part part : parts.get(fam)) note(cat, row, Breakdown.unit(part.item().id(), fam), part.amount());
+			noteCoins(cat, row, v);
+		}
 		earn(coins);
 		return coins;
 	}
@@ -182,6 +210,11 @@ public final class Tracker {
 			credits.put(item.id(), new Credit((c == null ? 0 : c.count) + count, now + CORPSE_CREDIT_MS));
 		}
 		double coins = count * item.value();
+		if (coins > 0) {
+			String row = item.name() != null ? item.name() : name;
+			note(Breakdown.CORPSE, row, "", count);
+			noteCoins(Breakdown.CORPSE, row, coins);
+		}
 		earn(coins);
 		return coins;
 	}
