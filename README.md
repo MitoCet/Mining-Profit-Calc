@@ -28,7 +28,10 @@ Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril,
 
 ## Neyi sayar
 
-- **Sack mesajları** (`[Sacks] +1,234 items`): sitedeki Mining sekmesinde olan malzemeler (Tungsten, Umber, Glacite, Mithril, Titanium, Hard Stone, Refined Mineral, Glossy Gemstone, Suspicious Scrap) ve gemstone'lar. Ham → Enchanted craftlamak kazanç sayılmaz, sack'ten bir şey çıkarmak eksi yazmaz.
+- **Sack mesajları** (`[Sacks] +1,234 items`): sitedeki Mining sekmesinde olan malzemeler (Tungsten, Umber, Glacite, Mithril, Titanium, Hard Stone, Refined Mineral, Glossy Gemstone, Suspicious Scrap) ve gemstone'lar. Sack'ten bir şey çıkarmak eksi yazmaz.
+- **Envanterden sack'e koyulanlar sayılmaz** (mod envanteri izler; envanterden az önce çıkan item sack'e girince kazanç değildir). Envantere düşüp oradan sack'e giden mining itemleri de bu yüzden sayılmaz.
+- **Stash'ten gelenler sayılır:** `/pickupstash` ile envantere gelen itemler (envanterde craftlansalar bile) sack'e koyunca kazanç sayılır.
+- **Craftlamak kazancı değiştirmez:** sack'teki itemleri `/craft` ile craftlamak (ör. Glacite → Enchanted Glacite) ya da envanterde craftlayıp sack'e koymak kazanç eklemez, kazılanlardan da düşmez.
 - **Frozen corpse loot'u**: ödül listesindeki fiyatı olan her item, envantere düşenler dahil. Corpse'tan gelip sack'e giren itemler iki kez sayılmaz.
 - Compact'tan düşen Enchanted itemler ve Pristine'den düşen Flawed gemler sack'e girince kendi değerleriyle sayılır (sack doluyken envantere düşenler sayılmaz).
 - Harcamalar (anahtarlar dahil) düşülmez.
@@ -43,5 +46,6 @@ GitHub Actions her push'ta derler; `main` dalındaki her derleme Releases'a ekle
 
 ## Bilinen sınırlar
 
-- Sack'e mining dışında giren itemler de sayılır: sandıktan ya da `/pickupstash` ile sack'e koyduğun, Bazaar'dan alıp sack'e giden Mining malzemeleri kazanç gibi görünür. Bunları yaparken session'ı durdur (`/kazanc dur`, sonra `/kazanc devam`).
+- Envanterden sandığa/Bazaar'a giden bir mining itemi, 1 dakika içinde aynı itemden kazılanların o kadarını saymayabilir.
+- Sack'ten forge'a ya da Bazaar'a giden itemler, aynı ailenin daha üst tier'inden (ör. Glacite giderken Compact'tan düşen Enchanted Glacite) 1 dakika içinde gelenleri o kadar düşürebilir; kazılan aynı ya da alt tier itemler etkilenmez.
 - Sack ve corpse mesajlarının biçimi oyunda denenerek doğrulanmadı; Hypixel biçimi farklıysa sayım 0 kalabilir.

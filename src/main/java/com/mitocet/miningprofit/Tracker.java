@@ -15,9 +15,9 @@ import java.util.regex.Pattern;
  *
  * Two sources:
  * - Sack messages ("[Sacks] +1,234 items"): their hover text lists every item that went in or out.
- *   Only Mining tab materials and gemstones count. Items of one family (e.g. Tungsten and Enchanted
- *   Tungsten) are netted, so compacting 160 Tungsten into 1 Enchanted Tungsten adds nothing.
- *   A family that went down in total (taken out of the sacks) counts 0, never negative.
+ *   Only Mining tab materials and gemstones count. Items put in from the inventory do not count;
+ *   items from the stash do. Taking items out never counts negative, and crafting what was taken
+ *   out (e.g. Glacite into Enchanted Glacite) and putting it back adds nothing (see onSackMessage).
  * - Frozen corpse loot ("... CORPSE LOOT!" then "REWARDS"): every priced item counts, also those
  *   that land in the inventory. Mining items from the loot also show up in the next sack message,
  *   so they are remembered for a while and taken off that sack message.
@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 public final class Tracker {
 	public static final long CORPSE_CREDIT_MS = 90_000;
 	private static final Pattern SACK_LINE = Pattern.compile("^\\s*([+-][\\d,.]+)\\s+(.+?)\\s*\\(([^)]*)\\)\\s*$");
+	private static final Pattern STASH_PICKUP = Pattern.compile("(?i)picked up .*stash");
 	private static final Pattern CORPSE_HEADER = Pattern.compile("CORPSE LOOT!");
 	private static final Pattern AMOUNT_FIRST = Pattern.compile("^\\+?([\\d,.]+)x?\\s+(.+)$");
 	private static final Pattern AMOUNT_LAST = Pattern.compile("^(.+?)\\s+x([\\d,.]+)$");
@@ -67,6 +68,9 @@ public final class Tracker {
 		sessionBreakdown.clear();
 		runningSince = now;
 		credits.clear();
+		gained.clear();
+		lost.clear();
+		usedInSacks.clear();
 	}
 
 	public void stop(long now) {
@@ -120,13 +124,24 @@ public final class Tracker {
 	}
 
 	// ---------- sacks ----------
-	/** Coins counted from one sack message, given all of its hover texts. */
+	/**
+	 * Coins counted from one sack message, given all of its hover texts.
+	 *
+	 * - Items put in that had just left the inventory were put in by hand: not counted. Items
+	 *   from /pickupstash are the exception: they go through the inventory but still count.
+	 * - Taking items out never counts negative. Items taken out that showed up in the inventory
+	 *   change nothing. Others were used in the sacks themselves (e.g. /craft turns Glacite into
+	 *   Enchanted Glacite in the sacks): their value is taken off what of the same family and a
+	 *   higher tier goes in, in this message or one shortly after, so crafting adds nothing. Mined
+	 *   items of the same or a lower tier are never taken off (e.g. a forge using Enchanted Glacite
+	 *   does not cost the Glacite being mined).
+	 */
 	public double onSackMessage(List<String> hoverTexts, long now) {
 		if (!running()) return 0;
 		Prices p = prices.get();
 		dropOldCredits(now);
-		Map<String, Double> byFamily = new HashMap<>();
-		Map<String, List<Part>> parts = new HashMap<>();
+		dropOldInventoryChanges(now);
+		List<Part> in = new ArrayList<>();
 		// Hypixel puts the same hover on several pieces of one message (e.g. "+1,234" and "items"),
 		// so one list can come in more than once: read each distinct hover text once.
 		for (String hover : new LinkedHashSet<>(hoverTexts)) {
@@ -136,24 +151,184 @@ public final class Tracker {
 				double amount = number(m.group(1));
 				Prices.Item item = p.byName(m.group(2));
 				if (item == null || !item.mining()) continue;
-				if (amount > 0) amount -= useCredit(item.id(), amount);
-				byFamily.merge(item.family(), amount * item.value(), Double::sum);
-				parts.computeIfAbsent(item.family(), (k) -> new ArrayList<>()).add(new Part(item, amount));
+				if (amount > 0) {
+					amount -= useCredit(item.id(), amount);
+					amount -= fromInventory(item.id(), amount);
+					if (amount > 0) in.add(new Part(item, amount));
+				} else if (amount < 0) {
+					double left = toInventory(item.family(), -amount * item.value(), p);
+					if (left > 0) usedInSacks.computeIfAbsent(item.family(), (k) -> new ArrayList<>())
+						.add(new Used(item.value(), left, now));
+				}
 			}
 		}
-		double coins = 0;
-		for (Map.Entry<String, Double> e : byFamily.entrySet()) {
-			double v = e.getValue();
-			if (v <= 0) continue;
-			coins += v;
-			String fam = e.getKey();
+		Map<String, Double> byFamily = new HashMap<>();
+		for (Part part : in) {
+			Prices.Item item = part.item();
+			double value = part.amount() * item.value();
+			value -= takeUsed(item.family(), item.value(), value);
+			if (value <= 0 || item.value() <= 0) continue;
+			String fam = item.family();
 			String cat = Breakdown.category(fam);
 			String row = Breakdown.rowName(fam);
-			for (Part part : parts.get(fam)) note(cat, row, Breakdown.unit(part.item().id(), fam), part.amount());
-			noteCoins(cat, row, v);
+			note(cat, row, Breakdown.unit(item.id(), fam), value / item.value());
+			noteCoins(cat, row, value);
+			byFamily.merge(fam, value, Double::sum);
 		}
+		double coins = 0;
+		for (double v : byFamily.values()) coins += v;
 		earn(coins);
 		return coins;
+	}
+
+	// Items taken out of the sacks and used there (crafted), per family, not yet matched.
+	private final Map<String, List<Used>> usedInSacks = new HashMap<>();
+
+	private record Used(double unitValue, double value, long since) {}
+
+	/** Of {@code value} coins of an item put in, how much is the crafted form of items taken out. */
+	private double takeUsed(String fam, double unitValue, double value) {
+		List<Used> list = usedInSacks.get(fam);
+		if (list == null) return 0;
+		double taken = 0;
+		for (int i = 0; i < list.size() && taken < value; i++) {
+			Used u = list.get(i);
+			if (u.unitValue >= unitValue) continue;
+			double t = Math.min(u.value, value - taken);
+			taken += t;
+			if (u.value - t < 1e-9) list.remove(i--);
+			else list.set(i, new Used(u.unitValue, u.value - t, u.since));
+		}
+		return taken;
+	}
+
+	// ---------- inventory ----------
+	/** How long an inventory change is matched with sack messages (they come up to ~30 s late). */
+	public static final long INVENTORY_MS = 60_000;
+	/** After /pickupstash, what comes into the inventory this soon is from the stash. */
+	public static final long STASH_PICKUP_MS = 5_000;
+	/** Stash items still in the inventory are remembered this long. */
+	public static final long STASH_KEEP_MS = 30 * 60_000;
+	// Mining items in the inventory at the last look (item id -> count), null = not known yet.
+	private Map<String, Double> inventory;
+	// Recent inventory changes per item id, kept apart: what came in, and what went out
+	// (e.g. put into the sacks). Kept apart so taking out and putting back in can be matched
+	// whatever order the sack messages come in.
+	private final Map<String, Change> gained = new HashMap<>();
+	private final Map<String, Change> lost = new HashMap<>();
+	// Value per family of items from the stash still in the inventory.
+	private final Map<String, Double> stash = new HashMap<>();
+	private long stashPickupUntil = -1;
+	private long stashSince = -1;
+
+	private record Change(double count, long since) {}
+
+	/** /pickupstash was used: the items it brings into the inventory count when put into the sacks. */
+	public void onStashPickup(long now) {
+		stashPickupUntil = now + STASH_PICKUP_MS;
+	}
+
+	/**
+	 * Feed the inventory now and then (item names with counts, the item on the cursor too).
+	 * Pass null when there is no inventory (no player), so the next look starts over.
+	 */
+	public void onInventory(List<Map.Entry<String, Integer>> stacks, long now) {
+		if (stacks == null) {
+			inventory = null;
+			return;
+		}
+		Prices p = prices.get();
+		Map<String, Double> counts = new HashMap<>();
+		for (Map.Entry<String, Integer> s : stacks) {
+			Prices.Item item = p.byName(s.getKey());
+			if (item != null && item.mining()) counts.merge(item.id(), (double) s.getValue(), Double::sum);
+		}
+		if (stashSince >= 0 && now - stashSince > STASH_KEEP_MS) {
+			stash.clear();
+			stashSince = -1;
+		}
+		if (inventory != null) {
+			Map<String, Double> diff = new HashMap<>(counts);
+			for (Map.Entry<String, Double> e : inventory.entrySet()) diff.merge(e.getKey(), -e.getValue(), Double::sum);
+			// Per family, what came in and went out at the same look was crafted in the inventory
+			// (e.g. Glacite compacted into Enchanted Glacite): that alone changes nothing.
+			Map<String, double[]> famInOut = new HashMap<>();
+			for (Map.Entry<String, Double> e : diff.entrySet()) {
+				Prices.Item item = p.byId(e.getKey());
+				if (item == null || e.getValue() == 0) continue;
+				double[] io = famInOut.computeIfAbsent(item.family(), (k) -> new double[2]);
+				io[e.getValue() > 0 ? 0 : 1] += Math.abs(e.getValue()) * item.value();
+			}
+			boolean fromStash = now <= stashPickupUntil;
+			for (Map.Entry<String, Double> e : diff.entrySet()) {
+				Prices.Item item = p.byId(e.getKey());
+				double d = e.getValue();
+				if (item == null || d == 0) continue;
+				double[] io = famInOut.get(item.family());
+				double crafted = Math.min(io[0], io[1]);
+				double side = d > 0 ? io[0] : io[1];
+				double count = Math.abs(d) * (side > 0 ? 1 - crafted / side : 1);
+				if (count < 1e-9) continue;
+				if (d > 0 && fromStash) {
+					stash.merge(item.family(), count * item.value(), Double::sum);
+					stashSince = now;
+					continue;
+				}
+				if (d < 0) {
+					// Stash items leaving the inventory are not taken off the sacks.
+					double s = stash.getOrDefault(item.family(), 0.0);
+					double cover = item.value() > 0 ? Math.min(count, s / item.value()) : 0;
+					if (cover > 0) {
+						stash.put(item.family(), s - cover * item.value());
+						count -= cover;
+						if (count < 1e-9) continue;
+					}
+				}
+				Map<String, Change> pool = d > 0 ? gained : lost;
+				Change c = pool.get(e.getKey());
+				double sum = (c == null || c.since < now - INVENTORY_MS ? 0 : c.count) + count;
+				pool.put(e.getKey(), new Change(sum, now));
+			}
+		}
+		inventory = counts;
+	}
+
+	/** Of {@code amount} put into the sacks, how many had just left the inventory (and are used up here). */
+	private double fromInventory(String id, double amount) {
+		Change c = lost.get(id);
+		if (c == null || amount <= 0) return 0;
+		double used = Math.min(c.count, amount);
+		put(lost, id, c.count - used, c.since);
+		return used;
+	}
+
+	/**
+	 * Of {@code value} coins taken out of a family's sacks, what did not show up in the inventory
+	 * (as the same items or what was crafted from them). The part that did is used up here.
+	 */
+	private double toInventory(String fam, double value, Prices p) {
+		if (value <= 0) return 0;
+		for (Map.Entry<String, Change> e : new ArrayList<>(gained.entrySet())) {
+			Prices.Item item = p.byId(e.getKey());
+			Change c = e.getValue();
+			if (item == null || !fam.equals(item.family()) || item.value() <= 0) continue;
+			double used = Math.min(value, c.count * item.value());
+			value -= used;
+			put(gained, e.getKey(), c.count - used / item.value(), c.since);
+			if (value <= 0) return 0;
+		}
+		return value;
+	}
+
+	private static void put(Map<String, Change> pool, String id, double count, long since) {
+		if (count < 1e-9) pool.remove(id);
+		else pool.put(id, new Change(count, since));
+	}
+
+	private void dropOldInventoryChanges(long now) {
+		gained.values().removeIf((c) -> c.since < now - INVENTORY_MS);
+		lost.values().removeIf((c) -> c.since < now - INVENTORY_MS);
+		for (List<Used> list : usedInSacks.values()) list.removeIf((u) -> u.since < now - INVENTORY_MS);
 	}
 
 	private double useCredit(String id, double amount) {
@@ -175,6 +350,10 @@ public final class Tracker {
 	/** Feed every chat line (a message with several lines is split first). Returns coins counted. */
 	public double onChatLine(String raw, long now) {
 		String line = strip(raw).trim();
+		if (STASH_PICKUP.matcher(line).find()) {
+			onStashPickup(now);
+			return 0;
+		}
 		if (CORPSE_HEADER.matcher(line).find()) {
 			corpseOpen = true;
 			corpseRewards = false;
