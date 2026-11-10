@@ -33,6 +33,15 @@ class TrackerTest {
 	}
 
 	@Test
+	void sameHoverOnTwoPiecesCountsOnce() {
+		Tracker t = running();
+		String added = "Added items:\n  +1,000 Tungsten (Mining Sack)\n  +3 Enchanted Tungsten (Mining Sack)";
+		String removed = "Removed items:\n  -10 Rough Onyx Gemstone (Gemstone Sack)";
+		double c = t.onSackMessage(List.of(added, added, removed, removed), 1000);
+		assertEquals(1000 * 100 + 3 * 16000, c, 1e-9);
+	}
+
+	@Test
 	void compactingIsNotCounted() {
 		Tracker t = running();
 		double c = t.onSackMessage(List.of("  +1 Enchanted Tungsten (Mining Sack)", "  -160 Tungsten (Mining Sack)"), 1000);
