@@ -143,6 +143,16 @@ public final class MiningProfitClient implements ClientModInitializer {
 					status(c);
 					return say(c, "Durduruldu. Devam etmek için /kazanc devam, yeni session için /kazanc baslat.");
 				}))
+				.then(ClientCommands.literal("bitir").executes((c) -> {
+					long now = System.currentTimeMillis();
+					long ms = tracker.sessionMs(now);
+					double coins = tracker.sessionCoins;
+					tracker.end(now);
+					save();
+					return say(c, "Session bitti: " + Format.coins(coins) + " (" + Format.time(ms) + ", "
+						+ Format.coins(Tracker.perHour(coins, ms)) + "/sa). Session sıfırlandı, Toplam'a eklendi."
+						+ " Yeni session için /kazanc baslat.");
+				}))
 				.then(ClientCommands.literal("devam").executes((c) -> {
 					tracker.resume(System.currentTimeMillis());
 					save();

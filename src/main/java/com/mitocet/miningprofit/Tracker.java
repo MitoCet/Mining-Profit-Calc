@@ -81,6 +81,18 @@ public final class Tracker {
 		runningSince = -1;
 	}
 
+	/** Ends the session: stops it and clears it to zero. The all-time total keeps what it earned. */
+	public void end(long now) {
+		stop(now);
+		sessionCoins = 0;
+		sessionMs = 0;
+		sessionBreakdown.clear();
+		credits.clear();
+		gained.clear();
+		lost.clear();
+		usedInSacks.clear();
+	}
+
 	public void resume(long now) {
 		if (!running()) runningSince = now;
 	}
