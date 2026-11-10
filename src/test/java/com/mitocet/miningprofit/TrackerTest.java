@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class TrackerTest {
 	private static final Prices PRICES = Prices.parse("""
@@ -25,6 +26,18 @@ class TrackerTest {
 		Tracker t = new Tracker(() -> PRICES);
 		t.start(0);
 		return t;
+	}
+
+	@Test
+	void endClearsSessionKeepsTotal() {
+		Tracker t = running();
+		t.onSackMessage(List.of("  +1,000 Tungsten (Mining Sack)"), 1000);
+		t.end(60_000);
+		assertFalse(t.running());
+		assertEquals(0, t.sessionCoins, 1e-9);
+		assertEquals(0, t.sessionMs(120_000));
+		assertEquals(1000 * 100, t.totalCoins, 1e-9);
+		assertEquals(60_000, t.totalMs(120_000));
 	}
 
 	@Test
