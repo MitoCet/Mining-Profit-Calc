@@ -2,7 +2,7 @@ package com.mitocet.miningprofit;
 
 import java.util.Locale;
 
-/** Turkish style numbers: 1,25M, 340,5k, 1sa 05dk. */
+/** Turkish style numbers: 1,25M, 340,5k, 1sa 05dk 07sn. */
 public final class Format {
 	private Format() {}
 
@@ -21,8 +21,12 @@ public final class Format {
 		return String.format(Locale.ROOT, "%,d", Math.round(v)).replace(',', '.');
 	}
 
+	/** 1sa 05dk 07sn, 5dk 07sn, 42sn. */
 	public static String time(long ms) {
-		long min = ms / 60_000;
-		return min >= 60 ? String.format(Locale.ROOT, "%dsa %02ddk", min / 60, min % 60) : min + "dk";
+		long sec = Math.max(0, ms) / 1000;
+		long min = sec / 60;
+		if (min >= 60) return String.format(Locale.ROOT, "%dsa %02ddk %02dsn", min / 60, min % 60, sec % 60);
+		if (min > 0) return String.format(Locale.ROOT, "%ddk %02dsn", min, sec % 60);
+		return sec + "sn";
 	}
 }

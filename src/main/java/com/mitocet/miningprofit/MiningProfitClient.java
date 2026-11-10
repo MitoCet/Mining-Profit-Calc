@@ -9,14 +9,19 @@ import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +35,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -89,6 +95,13 @@ public final class MiningProfitClient implements ClientModInitializer {
 			if (!overlay) onMessage(message);
 		});
 
+		// /pickupstash (typed or clicked in chat): what it brings into the inventory is from the stash.
+		ClientSendMessageEvents.COMMAND.register((command) -> {
+			if (command.trim().toLowerCase(java.util.Locale.ROOT).startsWith("pickupstash")) {
+				tracker.onStashPickup(System.currentTimeMillis());
+			}
+		});
+
 		hud = new Hud(this);
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "box"), hud::render);
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
@@ -107,6 +120,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		ClientLifecycleEvents.CLIENT_STOPPING.register((client) -> save());
 		// Save every 30 seconds while running, so a crash loses little.
 		ClientTickEvents.END_CLIENT_TICK.register((client) -> {
+			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
+			if (ticks % 10 == 0) readInventory(client);
 			if (++ticks >= 600) {
 				ticks = 0;
 				if (tracker.running()) save();
@@ -180,6 +195,24 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		for (String line : Tracker.lines(text)) tracker.onChatLine(line, now);
+	}
+
+	private void readInventory(Minecraft client) {
+		LocalPlayer player = client.player;
+		if (player == null) {
+			tracker.onInventory(null, System.currentTimeMillis());
+			return;
+		}
+		List<Map.Entry<String, Integer>> stacks = new ArrayList<>();
+		Inventory inv = player.getInventory();
+		for (int i = 0; i < inv.getContainerSize(); i++) add(stacks, inv.getItem(i));
+		// The item held on the cursor in a menu still belongs to the inventory.
+		add(stacks, player.containerMenu.getCarried());
+		tracker.onInventory(stacks, System.currentTimeMillis());
+	}
+
+	private static void add(List<Map.Entry<String, Integer>> out, ItemStack stack) {
+		if (!stack.isEmpty()) out.add(Map.entry(stack.getHoverName().getString(), stack.getCount()));
 	}
 
 	private static void collectHovers(Component c, List<String> out) {
