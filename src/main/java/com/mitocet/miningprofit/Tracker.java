@@ -3,6 +3,7 @@ package com.mitocet.miningprofit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -126,7 +127,9 @@ public final class Tracker {
 		dropOldCredits(now);
 		Map<String, Double> byFamily = new HashMap<>();
 		Map<String, List<Part>> parts = new HashMap<>();
-		for (String hover : hoverTexts) {
+		// Hypixel puts the same hover on several pieces of one message (e.g. "+1,234" and "items"),
+		// so one list can come in more than once: read each distinct hover text once.
+		for (String hover : new LinkedHashSet<>(hoverTexts)) {
 			for (String line : hover.split("\n")) {
 				Matcher m = SACK_LINE.matcher(strip(line));
 				if (!m.matches()) continue;
