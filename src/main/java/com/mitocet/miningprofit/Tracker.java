@@ -153,7 +153,9 @@ public final class Tracker {
 				if (item == null || !item.mining()) continue;
 				if (amount > 0) {
 					amount -= useCredit(item.id(), amount);
-					amount -= fromInventory(item.id(), amount);
+					double byHand = fromInventory(item.id(), amount);
+					amount -= byHand;
+					amount += fromStash(item, byHand);
 					if (amount > 0) in.add(new Part(item, amount));
 				} else if (amount < 0) {
 					double left = toInventory(item.family(), -amount * item.value(), p);
@@ -216,7 +218,7 @@ public final class Tracker {
 	// whatever order the sack messages come in.
 	private final Map<String, Change> gained = new HashMap<>();
 	private final Map<String, Change> lost = new HashMap<>();
-	// Value per family of items from the stash still in the inventory.
+	// Value per family of items from the stash not yet put into the sacks.
 	private final Map<String, Double> stash = new HashMap<>();
 	private long stashPickupUntil = -1;
 	private long stashSince = -1;
@@ -274,16 +276,6 @@ public final class Tracker {
 					stashSince = now;
 					continue;
 				}
-				if (d < 0) {
-					// Stash items leaving the inventory are not taken off the sacks.
-					double s = stash.getOrDefault(item.family(), 0.0);
-					double cover = item.value() > 0 ? Math.min(count, s / item.value()) : 0;
-					if (cover > 0) {
-						stash.put(item.family(), s - cover * item.value());
-						count -= cover;
-						if (count < 1e-9) continue;
-					}
-				}
 				Map<String, Change> pool = d > 0 ? gained : lost;
 				Change c = pool.get(e.getKey());
 				double sum = (c == null || c.since < now - INVENTORY_MS ? 0 : c.count) + count;
@@ -291,6 +283,18 @@ public final class Tracker {
 			}
 		}
 		inventory = counts;
+	}
+
+	/**
+	 * Of {@code count} items put in by hand, how many are worth stash items of the same family
+	 * (as they are, or crafted however): those still count. The stash value is used up here.
+	 */
+	private double fromStash(Prices.Item item, double count) {
+		double s = stash.getOrDefault(item.family(), 0.0);
+		if (count <= 0 || s <= 0 || item.value() <= 0) return 0;
+		double back = Math.min(count, s / item.value());
+		stash.put(item.family(), s - back * item.value());
+		return back;
 	}
 
 	/** Of {@code amount} put into the sacks, how many had just left the inventory (and are used up here). */

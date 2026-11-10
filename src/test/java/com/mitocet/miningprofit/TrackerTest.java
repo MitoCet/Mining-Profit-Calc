@@ -186,6 +186,23 @@ class TrackerTest {
 	}
 
 	@Test
+	void stashCraftedInAGridIsCounted() {
+		Tracker t = running();
+		t.onInventory(inv(), 0);
+		t.onStashPickup(1000);
+		t.onInventory(inv("Glacite", 1600), 1500);
+		// Glacite goes into a crafting grid, later the Enchanted Glacite comes out.
+		t.onInventory(inv(), 20_000);
+		t.onInventory(inv("Enchanted Glacite", 10), 25_000);
+		t.onInventory(inv(), 30_000);
+		assertEquals(10 * 1600, t.onSackMessage(List.of("  +10 Enchanted Glacite (Glacite Sack)"), 40_000), 1e-9);
+		// Used up: Glacite put in by hand afterwards does not count.
+		t.onInventory(inv("Glacite", 100), 41_000);
+		t.onInventory(inv(), 42_000);
+		assertEquals(0, t.onSackMessage(List.of("  +100 Glacite (Glacite Sack)"), 50_000), 1e-9);
+	}
+
+	@Test
 	void pickupAfterStashWindowIsNotStash() {
 		Tracker t = running();
 		t.onInventory(inv(), 0);
