@@ -16,6 +16,11 @@ public final class Format {
 		return s.replace('.', ',');
 	}
 
+	/** Whole count with dots: 1.200. */
+	public static String count(double v) {
+		return String.format(Locale.ROOT, "%,d", Math.round(v)).replace(',', '.');
+	}
+
 	public static String time(long ms) {
 		long min = ms / 60_000;
 		return min >= 60 ? String.format(Locale.ROOT, "%dsa %02ddk", min / 60, min % 60) : min + "dk";
