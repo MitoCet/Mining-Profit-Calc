@@ -241,6 +241,13 @@ class TrackerTest {
 	}
 
 	@Test
+	void timeHasSeconds() {
+		assertEquals("42sn", Format.time(42_500));
+		assertEquals("5dk 07sn", Format.time(307_000));
+		assertEquals("1sa 05dk 07sn", Format.time(3_907_000));
+	}
+
+	@Test
 	void perHour() {
 		assertEquals(2_000_000, Tracker.perHour(1_000_000, 1_800_000), 1e-6);
 	}
