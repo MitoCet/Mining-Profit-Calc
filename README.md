@@ -5,7 +5,7 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 ## Kurulum
 
 1. [Fabric Loader](https://fabricmc.net/use/) (26.2) ve [Fabric API](https://modrinth.com/mod/fabric-api) kurulu olsun.
-2. [Releases](https://github.com/MitoCet/Mining-Profit-Calc/releases) sayfasından en yeni `mining-profit-calc-1.0.0.jar` dosyasını indir.
+2. [Releases](https://github.com/MitoCet/Mining-Profit-Calc/releases) sayfasından en yeni `mining-profit-calc-1.0.X.jar` dosyasını indir (X = release numarası; eski sürümün jar'ını mods klasöründen sil).
 3. Dosyayı `.minecraft/mods` klasörüne at.
 
 ## Kullanım

@@ -14,13 +14,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Main builds get the next release number (newest v1.0.N tag + 1), so releases count 1, 2, 3...
+      # without gaps. github.run_number was used before, but pull request builds used up numbers too.
+      - name: Version
+        id: ver
+        run: |
+          last=$(git tag -l 'v1.0.*' | sed 's/^v1\.0\.//' | sort -n | tail -1)
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "version=1.0.$(( ${last:-0} + 1 ))" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=1.0.${last:-0}-test" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v4
       - name: Build
-        run: ./gradlew build --no-daemon
+        run: ./gradlew build --no-daemon -Pversion=${{ steps.ver.outputs.version }}
       - uses: actions/upload-artifact@v4
         with:
           name: mining-profit-calc
@@ -30,6 +43,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Mining Profit Calc 1.0.${{ github.run_number }}
-          files: build/libs/mining-profit-calc-1.0.0.jar
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Mining Profit Calc ${{ steps.ver.outputs.version }}
+          files: build/libs/mining-profit-calc-${{ steps.ver.outputs.version }}.jar
