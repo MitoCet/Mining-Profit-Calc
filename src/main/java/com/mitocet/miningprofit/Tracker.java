@@ -197,6 +197,27 @@ public final class Tracker {
 		totalCoins += coins;
 	}
 
+	/**
+	 * Adds items the API sack check found missing (their sack message never came). Goes to the
+	 * all-time total, and to the session too when {@code session} (not after it ended).
+	 */
+	public void addFix(Prices.Item item, double count, boolean session) {
+		double coins = count * item.value();
+		if (coins <= 0) return;
+		String fam = item.family();
+		String cat = Breakdown.category(fam);
+		String row = Breakdown.rowName(fam);
+		String unit = Breakdown.unit(item.id(), fam);
+		if (session) {
+			sessionBreakdown.addCount(cat, row, unit, count);
+			sessionBreakdown.addCoins(cat, row, coins);
+			sessionCoins += coins;
+		}
+		totalBreakdown.addCount(cat, row, unit, count);
+		totalBreakdown.addCoins(cat, row, coins);
+		totalCoins += coins;
+	}
+
 	private void note(String cat, String row, String unit, double count) {
 		sessionBreakdown.addCount(cat, row, unit, count);
 		totalBreakdown.addCount(cat, row, unit, count);

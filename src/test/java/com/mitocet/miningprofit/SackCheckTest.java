@@ -128,4 +128,18 @@ class SackCheckTest {
 		assertEquals(a, b);
 		assertFalse(a.equals(c));
 	}
+
+	@Test
+	void missingItemsAreAddedOnce() {
+		SackCheck s = started();
+		s.onSackMessage(List.of("  +500 Tungsten (Mining Sack)"), PRICES);
+		Map<String, Long> api = Map.of("TUNGSTEN", 2000L, "GLACITE", 40L);
+		s.setMissing(s.compare(api, PRICES).diffs());
+		// Glacite went down: never taken off the earnings.
+		assertEquals(Map.of("TUNGSTEN", 500L), s.missing);
+		assertEquals(Map.of("TUNGSTEN", 500L), s.takeMissing());
+		assertTrue(s.missing.isEmpty());
+		// Added items count as read: the next check finds Tungsten right.
+		assertEquals(List.of(new SackCheck.Diff("GLACITE", -10, 0)), s.compare(api, PRICES).diffs());
+	}
 }

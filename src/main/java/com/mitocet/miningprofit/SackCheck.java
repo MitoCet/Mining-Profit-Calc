@@ -44,6 +44,23 @@ public final class SackCheck {
 	public Double endedCoins;
 	/** The last result reported, so the same one is not warned about again. */
 	public String lastReport;
+	/** Items the last check found missing (item id -> count), for /kazanc duzelt. */
+	public Map<String, Long> missing = new HashMap<>();
+
+	/** Missing items to add now: positive differences only (earnings never go down). */
+	public void setMissing(List<Diff> diffs) {
+		missing = new HashMap<>();
+		for (Diff d : diffs) if (d.missing() > 0) missing.put(d.id(), d.missing());
+	}
+
+	/** Takes the missing items to add; they count as read from now on, so they are added once. */
+	public Map<String, Long> takeMissing() {
+		Map<String, Long> out = missing == null ? Map.of() : missing;
+		out.forEach((id, n) -> read.merge(id, n, Long::sum));
+		missing = new HashMap<>();
+		lastReport = null;
+		return out;
+	}
 
 	public boolean hasBase() {
 		return base != null;
@@ -54,6 +71,7 @@ public final class SackCheck {
 		baseAt = now;
 		read = new HashMap<>();
 		corpse = new HashMap<>();
+		missing = new HashMap<>();
 		endedCoins = null;
 		lastReport = null;
 	}
