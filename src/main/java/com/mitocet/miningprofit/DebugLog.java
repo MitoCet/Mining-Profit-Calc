@@ -33,6 +33,25 @@ public final class DebugLog {
 		return file;
 	}
 
+	/** The previous game's log, kept as one backup after {@link #startFresh()}. */
+	public Path oldFile() {
+		return file.resolveSibling(file.getFileName() + ".old");
+	}
+
+	/**
+	 * Called once when the game starts: the last game's log moves to .old (replacing the one
+	 * before it) and this game writes a new file, so the log only holds the current game.
+	 */
+	public synchronized void startFresh() {
+		try {
+			if (Files.exists(file) && Files.size(file) > 0) {
+				Files.move(file, oldFile(), StandardCopyOption.REPLACE_EXISTING);
+			}
+		} catch (Exception e) {
+			MiningProfitClient.LOG.warn("Could not start a new {}", file, e);
+		}
+	}
+
 	public void prices(String json, long now) {
 		JsonObject o = event("prices", now);
 		try {
@@ -94,7 +113,7 @@ public final class DebugLog {
 			Files.createDirectories(file.getParent());
 			// Keep it small: when full, the old part moves to .old and a new file starts.
 			if (Files.exists(file) && Files.size(file) > MAX_BYTES) {
-				Files.move(file, file.resolveSibling(file.getFileName() + ".old"), StandardCopyOption.REPLACE_EXISTING);
+				Files.move(file, oldFile(), StandardCopyOption.REPLACE_EXISTING);
 			}
 			Files.writeString(file, GSON.toJson(o) + "\n", StandardCharsets.UTF_8,
 				StandardOpenOption.CREATE, StandardOpenOption.APPEND);

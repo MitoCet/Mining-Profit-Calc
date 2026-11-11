@@ -61,7 +61,7 @@ public final class Help {
 			new Entry("uyari", "/kazanc uyari", "Bu session'daki uyarılar",
 				"Kutuda '⚠ Emin değilim' yazıyorsa nedenini söyler: okunamayan ya da iki kez gelen sack mesajı, kısa kesilmiş liste, tanınmayan item gibi."),
 			new Entry("kayit", "/kazanc kayit", "Hata kaydı (aç/kapa)",
-				"Açıkken okunan sack mesajları, corpse satırları ve sayılan coinler config/mining-profit-calc-debug.log dosyasına yazılır. Sayım yanlışsa bu dosyayı gönder."),
+				"Açıkken okunan sack mesajları, corpse satırları ve sayılan coinler config/mining-profit-calc-debug.log dosyasına yazılır. Oyun her açılışta yeni dosya başlar; bir önceki oyunun kaydı .old dosyasında kalır. Sayım yanlışsa bu dosyayı gönder."),
 			new Entry("help", "/kazanc help", "Bu liste",
 				"/kazanc yardim da aynı listeyi gösterir."))));
 

@@ -62,7 +62,7 @@ Mod bir mesajı okuyamazsa ya da bir şey yanlış görünürse sessizce saymaz;
 - Mining'e benzeyen ama değer listesinde olmayan bir item.
 - Corpse loot başlığı geldi ama ödül satırı okunamadı.
 
-Uyarı veren mesaj ham haliyle (hover dahil) `config/mining-profit-calc-debug.log` dosyasına yazılır. `/kazanc kayit` açıkken her sack mesajı, corpse satırı, envanterdeki mining itemleri ve modun her biri için saydığı coin de yazılır (dosya 5 MB'ı geçince `.old` olur). Bu dosya, sayım yanlışsa nedenini görmek ve gerçek mesajlarla test yazmak için kullanılır: `src/test/resources/replay/` klasörüne konan kayıtlar her derlemede baştan oynatılır (bkz. oradaki README).
+Uyarı veren mesaj ham haliyle (hover dahil) `config/mining-profit-calc-debug.log` dosyasına yazılır. `/kazanc kayit` açıkken her sack mesajı, corpse satırı, envanterdeki mining itemleri ve modun her biri için saydığı coin de yazılır (oyun her açılışta yeni dosya başlar, önceki oyunun kaydı `.old` olarak kalır; oyun açıkken dosya 5 MB'ı geçerse de `.old` olur). Bu dosya, sayım yanlışsa nedenini görmek ve gerçek mesajlarla test yazmak için kullanılır: `src/test/resources/replay/` klasörüne konan kayıtlar her derlemede baştan oynatılır (bkz. oradaki README).
 
 ## API ile sack kontrolü
 
