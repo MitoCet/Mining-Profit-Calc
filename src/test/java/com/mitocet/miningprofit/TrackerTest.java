@@ -281,4 +281,48 @@ class TrackerTest {
 	void perHour() {
 		assertEquals(2_000_000, Tracker.perHour(1_000_000, 1_800_000), 1e-6);
 	}
+
+	@Test
+	void unreadableSackMessageWarns() {
+		Tracker t = running();
+		t.onSackMessage(List.of("Something new: 1,000 Tungsten"), 1000);
+		assertEquals(List.of("Sack mesajı okunamadı (biçim farklı)"), t.warnings);
+	}
+
+	@Test
+	void sameSackMessageTwiceWarns() {
+		Tracker t = running();
+		t.onSackMessage(List.of("  +10 Tungsten (Mining Sack)"), 1000);
+		t.onSackMessage(List.of("  +10 Tungsten (Mining Sack)"), 2000);
+		assertEquals(List.of("Aynı sack mesajı iki kez geldi"), t.warnings);
+		t.onSackMessage(List.of("  +10 Tungsten (Mining Sack)"), 30_000);
+		assertEquals(1, t.warnings.size());
+	}
+
+	@Test
+	void unknownMiningItemAndCutListWarn() {
+		Tracker t = running();
+		t.onSackMessage(List.of("Added items:\n  +5 Flawless Onyx Gemstone (Gemstone Sack)\n  +3 Wheat (Agronomy Sack)\n  and 12 other items"), 1000);
+		assertEquals(List.of("Sack listesi kısa kesilmiş, bazı itemler sayılamadı", "Tanınmayan item: Flawless Onyx Gemstone"), t.warnings);
+	}
+
+	@Test
+	void corpseWithoutRewardsWarns() {
+		Tracker t = running();
+		for (String line : Tracker.lines("  UMBER CORPSE LOOT!\n  Something else\n")) t.onChatLine(line, 1000);
+		t.onChatLine("", 1100);
+		assertEquals(List.of("Corpse ödülleri okunamadı"), t.warnings);
+		Tracker ok = running();
+		for (String line : Tracker.lines("  UMBER CORPSE LOOT!\n  REWARDS\n    Umber Key x2\n")) ok.onChatLine(line, 1000);
+		ok.onChatLine("", 1100);
+		assertEquals(List.of(), ok.warnings);
+	}
+
+	@Test
+	void startClearsWarnings() {
+		Tracker t = running();
+		t.onSackMessage(List.of("nothing"), 1000);
+		t.start(2000);
+		assertEquals(List.of(), t.warnings);
+	}
 }

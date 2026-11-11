@@ -53,6 +53,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 	public Config config;
 	private Path configFile;
 	private Path pricesFile;
+	private DebugLog debug;
+	private volatile String pricesJson;
+	private String lastInventoryLogged;
 	private Hud hud;
 	private int ticks;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
@@ -72,10 +75,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 		// fresh ones arrive.
 		pricesFile = FabricLoader.getInstance().getConfigDir().resolve("mining-profit-calc-values.json");
 		try {
-			if (Files.exists(pricesFile)) prices = Prices.parse(Files.readString(pricesFile, StandardCharsets.UTF_8));
+			if (Files.exists(pricesFile)) {
+				pricesJson = Files.readString(pricesFile, StandardCharsets.UTF_8);
+				prices = Prices.parse(pricesJson);
+			}
 		} catch (Exception e) {
 			LOG.warn("Could not read saved mining values: {}", e.toString());
 		}
+		debug = new DebugLog(FabricLoader.getInstance().getConfigDir().resolve("mining-profit-calc-debug.log"));
 		tracker.totalCoins = config.totalCoins;
 		tracker.totalMs = config.totalMs;
 		tracker.sessionCoins = config.sessionCoins;
@@ -98,7 +105,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 		// /pickupstash (typed or clicked in chat): what it brings into the inventory is from the stash.
 		ClientSendMessageEvents.COMMAND.register((command) -> {
 			if (command.trim().toLowerCase(java.util.Locale.ROOT).startsWith("pickupstash")) {
-				tracker.onStashPickup(System.currentTimeMillis());
+				long now = System.currentTimeMillis();
+				tracker.onStashPickup(now);
+				if (config.debugLog) debug.simple("stash", now);
 			}
 		});
 
@@ -132,13 +141,17 @@ public final class MiningProfitClient implements ClientModInitializer {
 			ClientCommands.literal("kazanc")
 				.executes(this::status)
 				.then(ClientCommands.literal("baslat").executes((c) -> {
-					tracker.start(System.currentTimeMillis());
+					long now = System.currentTimeMillis();
+					tracker.start(now);
+					logControl("start", now);
 					save();
 					refreshPricesAsync();
 					return say(c, "Yeni session başladı. Sack ve corpse kazançları sayılıyor.");
 				}))
 				.then(ClientCommands.literal("dur").executes((c) -> {
-					tracker.stop(System.currentTimeMillis());
+					long now = System.currentTimeMillis();
+					tracker.stop(now);
+					logControl("stop", now);
 					save();
 					status(c);
 					return say(c, "Durduruldu. Devam etmek için /kazanc devam, yeni session için /kazanc baslat.");
@@ -148,13 +161,16 @@ public final class MiningProfitClient implements ClientModInitializer {
 					long ms = tracker.sessionMs(now);
 					double coins = tracker.sessionCoins;
 					tracker.end(now);
+					logControl("end", now);
 					save();
 					return say(c, "Session bitti: " + Format.coins(coins) + " (" + Format.time(ms) + ", "
 						+ Format.coins(Tracker.perHour(coins, ms)) + "/sa). Session sıfırlandı, Toplam'a eklendi."
 						+ " Yeni session için /kazanc baslat.");
 				}))
 				.then(ClientCommands.literal("devam").executes((c) -> {
-					tracker.resume(System.currentTimeMillis());
+					long now = System.currentTimeMillis();
+					tracker.resume(now);
+					logControl("resume", now);
 					save();
 					return say(c, "Session devam ediyor.");
 				}))
@@ -188,6 +204,25 @@ public final class MiningProfitClient implements ClientModInitializer {
 					save();
 					return say(c, "Kutu küçük: sadece kazanç ve saatlik.");
 				}))
+				.then(ClientCommands.literal("kayit").executes((c) -> {
+					config.debugLog = !config.debugLog;
+					save();
+					if (config.debugLog) {
+						long now = System.currentTimeMillis();
+						lastInventoryLogged = null;
+						if (pricesJson != null) debug.prices(pricesJson, now);
+						if (tracker.running()) debug.simple("start", now);
+						return say(c, "Kayıt açık: okunan mesajlar " + debug.file().getFileName()
+							+ " dosyasına (config klasörü) yazılıyor. Kapatmak için /kazanc kayit.");
+					}
+					return say(c, "Kayıt kapalı. Uyarılar yine de dosyaya yazılır.");
+				}))
+				.then(ClientCommands.literal("uyari").executes((c) -> {
+					if (tracker.warnings.isEmpty()) return say(c, "Bu session'da uyarı yok.");
+					say(c, "Bu session'daki uyarılar (ham mesajlar " + debug.file().getFileName() + " dosyasında):");
+					for (String w : tracker.warnings) say(c, "⚠ " + w);
+					return Command.SINGLE_SUCCESS;
+				}))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
 					refreshPricesAsync();
 					return say(c, "Fiyatlar siteden yeniden alınıyor.");
@@ -201,10 +236,35 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (Tracker.strip(text).contains("[Sacks]")) {
 			List<String> hovers = new ArrayList<>();
 			collectHovers(message, hovers);
-			tracker.onSackMessage(hovers, now);
+			long warned = tracker.warningCount;
+			double coins = tracker.onSackMessage(hovers, now);
+			// With the log on everything goes in; with it off only messages that gave a warning.
+			if (config.debugLog || tracker.warningCount != warned) debug.sack(hovers, coins, now);
+			logWarnings(warned, now);
 			return;
 		}
-		for (String line : Tracker.lines(text)) tracker.onChatLine(line, now);
+		for (String line : Tracker.lines(text)) {
+			boolean corpse = tracker.corpseOpen();
+			long warned = tracker.warningCount;
+			double coins = tracker.onChatLine(line, now);
+			boolean related = corpse || tracker.corpseOpen() || coins > 0
+				|| Tracker.strip(line).toLowerCase(java.util.Locale.ROOT).contains("stash");
+			if (related && (config.debugLog || tracker.warningCount != warned)) debug.chat(line, coins, now);
+			logWarnings(warned, now);
+		}
+	}
+
+	/** Writes the warnings given since {@code before} to the log (always, even with the log off). */
+	private void logWarnings(long before, long now) {
+		long added = tracker.warningCount - before;
+		List<String> w = tracker.warnings;
+		for (int i = (int) Math.max(0, w.size() - added); i < w.size(); i++) debug.warn(w.get(i), now);
+	}
+
+	private void logControl(String kind, long now) {
+		if (!config.debugLog) return;
+		if (kind.equals("start") && pricesJson != null) debug.prices(pricesJson, now);
+		debug.simple(kind, now);
 	}
 
 	private void readInventory(Minecraft client) {
@@ -218,7 +278,21 @@ public final class MiningProfitClient implements ClientModInitializer {
 		for (int i = 0; i < inv.getContainerSize(); i++) add(stacks, inv.getItem(i));
 		// The item held on the cursor in a menu still belongs to the inventory.
 		add(stacks, player.containerMenu.getCarried());
-		tracker.onInventory(stacks, System.currentTimeMillis());
+		long now = System.currentTimeMillis();
+		tracker.onInventory(stacks, now);
+		if (config.debugLog) {
+			// Only mining items, and only when they changed.
+			List<Map.Entry<String, Integer>> mining = new ArrayList<>();
+			for (Map.Entry<String, Integer> e : stacks) {
+				Prices.Item item = prices.byName(e.getKey());
+				if (item != null && item.mining()) mining.add(e);
+			}
+			String sig = mining.toString();
+			if (!sig.equals(lastInventoryLogged)) {
+				lastInventoryLogged = sig;
+				debug.inventory(mining, now);
+			}
+		}
 	}
 
 	private static void add(List<Map.Entry<String, Integer>> out, ItemStack stack) {
@@ -259,7 +333,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 			HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
 			if (res.statusCode() != 200) throw new IllegalStateException("HTTP " + res.statusCode());
 			prices = Prices.parse(res.body());
+			pricesJson = res.body();
 			pricesFresh = true;
+			if (config.debugLog) debug.prices(pricesJson, System.currentTimeMillis());
 			Files.writeString(pricesFile, res.body(), StandardCharsets.UTF_8);
 			LOG.info("Mining values loaded");
 		} catch (Exception e) {

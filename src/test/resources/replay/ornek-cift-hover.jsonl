@@ -1,0 +1,9 @@
+// Elle yazıldı: 2026-11-10 hatası. Hypixel aynı hover'ı mesajın iki parçasına koyuyor; bir kez sayılmalı.
+{"t":0,"kind":"prices","data":{"ts":1,"items":{"TUNGSTEN":{"v":100,"fam":"TUNGSTEN","name":"Tungsten"},"UMBER":{"v":90,"fam":"UMBER","name":"Umber"},"UMBER_KEY":{"v":50000,"name":"Umber Key"}}}}
+{"t":0,"kind":"start"}
+{"t":1000,"kind":"inv","stacks":[["Diamond Pickaxe",1]]}
+{"t":30000,"kind":"sack","hovers":["Added items:\n  +1,000 Tungsten (Mining Sack)\n  +500 Umber (Mining Sack)\n\nThis message can be disabled in the settings.","Added items:\n  +1,000 Tungsten (Mining Sack)\n  +500 Umber (Mining Sack)\n\nThis message can be disabled in the settings."],"coins":145000}
+// Envanterden sack'e konan 64 Tungsten sayılmaz.
+{"t":40000,"kind":"inv","stacks":[["Diamond Pickaxe",1],["Tungsten",64]]}
+{"t":41000,"kind":"inv","stacks":[["Diamond Pickaxe",1]]}
+{"t":60000,"kind":"sack","hovers":["Added items:\n  +64 Tungsten (Mining Sack)"],"coins":0}

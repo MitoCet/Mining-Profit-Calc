@@ -22,6 +22,8 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc goster`, `/kazanc gizle` | Session durmuşken de kutuyu gösterir / gizler (çalışırken kutu hep görünür) |
 | `/kazanc buyuk`, `/kazanc kucuk` | Kutuyu büyük (başlıklara ayrılmış kazanç) ya da küçük (kazanç, saatlik, süre) yapar |
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır |
+| `/kazanc kayit` | Kaydı açar / kapatır: mod okuduğu mesajları dosyaya yazar (aşağıya bak) |
+| `/kazanc uyari` | Bu session'daki uyarıları sohbete yazar |
 
 Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
 
@@ -41,6 +43,18 @@ Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril,
 
 Mod son indirdiği değerleri kaydeder; oyun açılınca önce onları kullanır, yenileri gelince onlara geçer. Kutuda eski fiyat kullanılıyorsa "⚠ Fiyatlar güncel değil" notu çıkar. Değerler [skyblock-forge-flip](https://mitocet.github.io/skyblock-forge-flip/) sitesinin fiyat toplayıcısından gelir (`mod-values.json`, 15 dakikada bir yenilenir). Mining malzemeleri sitedeki en kârlı yolla (ör. Tungsten → Plate, Glacite → Amalgamation, gemlerde Fine ya da Flawless) değerlenir; diğer itemler Bazaar sell offer ya da AH lowest BIN, vergi düşülmüş. Sitenin varsayılan ayarları kullanılır.
 
+## Uyarılar ve kayıt
+
+Mod bir mesajı okuyamazsa ya da bir şey yanlış görünürse sessizce saymaz; kutuda **⚠ Emin değilim: N uyarı** yazar, `/kazanc uyari` ne olduğunu söyler. Uyarı verenler:
+
+- Sack mesajında hiçbir satır okunamadı (Hypixel biçimi değişmiş olabilir).
+- Aynı sack mesajı 5 saniye içinde iki kez geldi (çift sayım riski).
+- Sack listesi "and N other items" ile kısa kesilmiş (görünmeyen itemler sayılamaz).
+- Mining'e benzeyen ama değer listesinde olmayan bir item.
+- Corpse loot başlığı geldi ama ödül satırı okunamadı.
+
+Uyarı veren mesaj ham haliyle (hover dahil) `config/mining-profit-calc-debug.log` dosyasına yazılır. `/kazanc kayit` açıkken her sack mesajı, corpse satırı, envanterdeki mining itemleri ve modun her biri için saydığı coin de yazılır (dosya 5 MB'ı geçince `.old` olur). Bu dosya, sayım yanlışsa nedenini görmek ve gerçek mesajlarla test yazmak için kullanılır: `src/test/resources/replay/` klasörüne konan kayıtlar her derlemede baştan oynatılır (bkz. oradaki README).
+
 ## Derleme
 
 GitHub Actions her push'ta derler; `main` dalındaki her derleme Releases'a eklenir. Yerelde: `./gradlew build` (Java 25).
@@ -49,4 +63,4 @@ GitHub Actions her push'ta derler; `main` dalındaki her derleme Releases'a ekle
 
 - Envanterden sandığa/Bazaar'a giden bir mining itemi, 1 dakika içinde aynı itemden kazılanların o kadarını saymayabilir.
 - Sack'ten forge'a ya da Bazaar'a giden itemler, aynı ailenin daha üst tier'inden (ör. Glacite giderken Compact'tan düşen Enchanted Glacite) 1 dakika içinde gelenleri o kadar düşürebilir; kazılan aynı ya da alt tier itemler etkilenmez.
-- Sack ve corpse mesajlarının biçimi oyunda denenerek doğrulanmadı; Hypixel biçimi farklıysa sayım 0 kalabilir.
+- Sack ve corpse mesajlarının biçimi oyunda denenerek doğrulanmadı; Hypixel biçimi farklıysa kutuda uyarı çıkar. Sack mesajı biçimi SkyHanni'nin okuduğu biçimle aynı (`+1,234 Item (Sack)` satırları, "Added"/"Removed" hover'ları).

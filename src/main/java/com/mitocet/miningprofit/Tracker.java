@@ -46,12 +46,33 @@ public final class Tracker {
 	// Corpse loot being read, and mining items from loot still expected in a sack message.
 	private boolean corpseOpen;
 	private boolean corpseRewards;
+	private int corpseRead;
 	private long corpseUntil;
 	private final Map<String, Credit> credits = new HashMap<>();
 
 	private record Credit(double count, long until) {}
 
 	private record Part(Prices.Item item, double amount) {}
+
+	// ---------- warnings ----------
+	/** Things the mod could not read or that look wrong, this session (newest last). */
+	public final List<String> warnings = new ArrayList<>();
+	/** Counts every warning ever given, so the caller can see that a call added one. */
+	public long warningCount;
+	private static final int MAX_WARNINGS = 20;
+	/** A mining-looking word in an item name the values don't know. */
+	private static final Pattern MINING_WORD = Pattern.compile(
+		"(?i)gemstone|tungsten|umber|glacite|mithril|titanium|hard stone|suspicious scrap|refined mineral");
+	/** The same sack message coming again this soon is reported (it was the cause of double counts). */
+	public static final long DUPLICATE_MS = 5_000;
+	private String lastSackKey;
+	private long lastSackAt = -1;
+
+	private void warn(String text) {
+		warningCount++;
+		if (warnings.size() >= MAX_WARNINGS) warnings.remove(0);
+		warnings.add(text);
+	}
 
 	public Tracker(Supplier<Prices> prices) {
 		this.prices = prices;
@@ -63,6 +84,8 @@ public final class Tracker {
 	}
 
 	public void start(long now) {
+		warnings.clear();
+		lastSackKey = null;
 		sessionCoins = 0;
 		sessionMs = 0;
 		sessionBreakdown.clear();
@@ -84,6 +107,8 @@ public final class Tracker {
 	/** Ends the session: stops it and clears it to zero. The all-time total keeps what it earned. */
 	public void end(long now) {
 		stop(now);
+		warnings.clear();
+		lastSackKey = null;
 		sessionCoins = 0;
 		sessionMs = 0;
 		sessionBreakdown.clear();
@@ -156,12 +181,26 @@ public final class Tracker {
 		List<Part> in = new ArrayList<>();
 		// Hypixel puts the same hover on several pieces of one message (e.g. "+1,234" and "items"),
 		// so one list can come in more than once: read each distinct hover text once.
-		for (String hover : new LinkedHashSet<>(hoverTexts)) {
+		LinkedHashSet<String> distinct = new LinkedHashSet<>(hoverTexts);
+		String key = String.join("\u0000", distinct);
+		if (key.equals(lastSackKey) && now - lastSackAt <= DUPLICATE_MS && !key.isEmpty()) {
+			warn("Aynı sack mesajı iki kez geldi");
+		}
+		lastSackKey = key;
+		lastSackAt = now;
+		int read = 0;
+		for (String hover : distinct) {
+			// A long list ends with "and N other items": those are not shown, so not counted.
+			if (strip(hover).contains("other items")) warn("Sack listesi kısa kesilmiş, bazı itemler sayılamadı");
 			for (String line : hover.split("\n")) {
 				Matcher m = SACK_LINE.matcher(strip(line));
 				if (!m.matches()) continue;
+				read++;
 				double amount = number(m.group(1));
 				Prices.Item item = p.byName(m.group(2));
+				if (item == null && p.loaded() && MINING_WORD.matcher(m.group(2)).find()) {
+					warn("Tanınmayan item: " + m.group(2).trim());
+				}
 				if (item == null || !item.mining()) continue;
 				if (amount > 0) {
 					amount -= useCredit(item.id(), amount);
@@ -176,6 +215,7 @@ public final class Tracker {
 				}
 			}
 		}
+		if (read == 0) warn("Sack mesajı okunamadı (biçim farklı)");
 		Map<String, Double> byFamily = new HashMap<>();
 		for (Part part : in) {
 			Prices.Item item = part.item();
@@ -371,14 +411,16 @@ public final class Tracker {
 			return 0;
 		}
 		if (CORPSE_HEADER.matcher(line).find()) {
+			if (corpseOpen) closeCorpse();
 			corpseOpen = true;
 			corpseRewards = false;
+			corpseRead = 0;
 			corpseUntil = now + 3_000;
 			return 0;
 		}
 		if (!corpseOpen) return 0;
 		if (now > corpseUntil || line.isEmpty() || line.startsWith("▬")) {
-			corpseOpen = false;
+			closeCorpse();
 			return 0;
 		}
 		if (!corpseRewards) {
@@ -388,7 +430,18 @@ public final class Tracker {
 		return corpseReward(line, now);
 	}
 
+	private void closeCorpse() {
+		corpseOpen = false;
+		if (running() && corpseRead == 0) warn("Corpse ödülleri okunamadı");
+	}
+
+	/** True while corpse loot lines are being read (for the debug log). */
+	public boolean corpseOpen() {
+		return corpseOpen;
+	}
+
 	private double corpseReward(String line, long now) {
+		corpseRead++;
 		if (!running()) return 0;
 		String name = line;
 		double count = 1;

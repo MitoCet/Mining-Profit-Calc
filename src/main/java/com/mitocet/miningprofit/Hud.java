@@ -104,6 +104,12 @@ public final class Hud {
 			lines.add(new Line("⚠ Fiyatlar güncel değil" + (age > 0 ? " (" + Format.time(age) + " önce)" : ""), WARN, null));
 		}
 
+		// Something could not be read or looked wrong: the total may be off.
+		if (!t.warnings.isEmpty()) {
+			lines.add(new Line("⚠ Emin değilim: " + t.warnings.size() + " uyarı (/kazanc uyari)", WARN, null));
+		}
+		if (cfg.debugLog) lines.add(new Line("● Kayıt açık", MUTED, null));
+
 		sessionTabEnd = font.width(tabA) + 6;
 		int w = sessionTabEnd + font.width(tabB) + 8 + font.width(toggle);
 		for (Line l : lines) w = Math.max(w, font.width(l.text));
