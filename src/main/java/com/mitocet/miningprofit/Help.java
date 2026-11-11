@@ -1,0 +1,71 @@
+package com.mitocet.miningprofit;
+
+import java.util.List;
+
+/**
+ * The text of /kazanc help (and /kazanc yardim): every command, grouped, with a short line
+ * shown in chat and a longer explanation shown on hover. Kept as plain data so a test can
+ * check that every registered command is listed here.
+ */
+public final class Help {
+	private Help() {}
+
+	/** One command line: what to type, what is shown in chat, what is shown on hover. */
+	public record Entry(String command, String usage, String shortText, String details) {}
+
+	public record Group(String title, List<Entry> entries) {}
+
+	public static final String INTRO =
+		"Mining yaparken kazandığın parayı sayar ve kutuda gösterir. Sadece sohbet mesajlarını okur, oyunda hiçbir şey yapmaz."
+		+ " Komutun üstüne gel: ayrıntı. Tıkla: komut sohbete yazılır.";
+
+	public static final List<Group> GROUPS = List.of(
+		new Group("Session", List.of(
+			new Entry("baslat", "/kazanc baslat", "Yeni session başlatır",
+				"Session sıfırlanır ve sayım başlar. Fiyatlar siteden yenilenir. API anahtarı varsa Hypixel'den başlangıç sack sayıları alınır (/kazanc kontrol için)."),
+			new Entry("dur", "/kazanc dur", "Durdurur, özeti yazar",
+				"Sayım ve süre durur, session silinmez. /kazanc devam ile kaldığın yerden sürer."),
+			new Entry("devam", "/kazanc devam", "Durdurulan session'a devam eder",
+				"/kazanc dur ile durdurulan session'ın sayımı ve süresi kaldığı yerden sürer."),
+			new Entry("bitir", "/kazanc bitir", "Session'ı bitirir ve sıfırlar",
+				"Durdurur, özeti (kazanç, süre, saatlik) sohbete yazar ve session'ı sıfırlar. Toplam'a dokunmaz. Yeni session kendiliğinden başlamaz. API anahtarı varsa sack kontrolü de yapılır."),
+			new Entry("", "/kazanc", "Session ve Toplam özeti",
+				"Session ve Toplam kazancı, süresi ve saatliği sohbete yazar."),
+			new Entry("sifirla", "/kazanc sifirla", "Toplam kazancı sıfırlar",
+				"Sadece Toplam (tüm zamanlar) sıfırlanır, session'a dokunulmaz."))),
+		new Group("Kutu", List.of(
+			new Entry("sekme", "/kazanc sekme", "Session / Toplam sekmesi",
+				"Kutuda Session (bu session) ile Toplam (tüm zamanlar) arasında geçer. Kutudaki yazıya tıklayarak da değişir."),
+			new Entry("buyuk", "/kazanc buyuk", "Büyük kutu: başlıklara ayrılmış",
+				"Kazanç Gemstone, Dwarven Metal, Corpse Loot, Fiesta, Diğer başlıklarına ayrılır. T ile sohbeti açıp başlığa tıklayınca neyden kaç tane geldiği yazar. Kutudaki [+] de aynısını yapar."),
+			new Entry("kucuk", "/kazanc kucuk", "Küçük kutu: kazanç, saatlik, süre",
+				"Kutuda sadece kazanç, saatlik ve süre görünür. Kutudaki [-] de aynısını yapar."),
+			new Entry("goster", "/kazanc goster", "Durmuşken de kutuyu göster",
+				"Session durmuşken de kutu görünür. Çalışırken kutu zaten hep görünür."),
+			new Entry("gizle", "/kazanc gizle", "Durmuşken kutuyu gizle",
+				"Kutu sadece session çalışırken görünür."))),
+		new Group("Sayım ayarları", List.of(
+			new Entry("bosta", "/kazanc bosta [sn]", "Boşta süre durması",
+				"Bu kadar saniye hiç kazanç gelmezse süre durur, ilk kazançta devam eder; saatlik sadece aktif süreyle hesaplanır. Varsayılan 90, 0 = hiç durmasın. Sayı yazmazsan şu anki ayarı söyler."),
+			new Entry("anahtar", "/kazanc anahtar", "Corpse anahtarlarını düş (aç/kapa)",
+				"Açıkken kullanılan Tungsten/Umber/Skeleton Key'ler kazançtan düşülür (büyük kutuda Corpse Loot altında). Varsayılan kapalı. Resourceful anahtarı kurtarırsa düşülmez."),
+			new Entry("fiyat", "/kazanc fiyat", "Fiyatları hemen yenile",
+				"Değerler siteden yeniden alınır (normalde 15 dakikada bir kendiliğinden yenilenir). Eski fiyat kullanılıyorsa kutuda '⚠ Fiyatlar güncel değil' yazar."))),
+		new Group("Kontrol ve sorunlar", List.of(
+			new Entry("api", "/kazanc api <anahtar>", "Hypixel API anahtarını kaydet",
+				"developer.hypixel.net anahtarı sadece bu bilgisayardaki mod ayarına kaydedilir. /kazanc api sil siler, /kazanc api kayıtlı mı söyler. Sack kontrolü için gerekir."),
+			new Entry("kontrol", "/kazanc kontrol", "Sack sayılarını API ile karşılaştır",
+				"Modun okuduğu sack değişimi Hypixel API'deki gerçek sayılarla item item karşılaştırılır. Fark varsa 'gerçek X, mod Y' ve API'ye göre gerçek kazanç yazılır. Hypixel birkaç dakika geç günceller; 2-3 dk sonra tekrar dene."),
+			new Entry("uyari", "/kazanc uyari", "Bu session'daki uyarılar",
+				"Kutuda '⚠ Emin değilim' yazıyorsa nedenini söyler: okunamayan ya da iki kez gelen sack mesajı, kısa kesilmiş liste, tanınmayan item gibi."),
+			new Entry("kayit", "/kazanc kayit", "Hata kaydı (aç/kapa)",
+				"Açıkken okunan sack mesajları, corpse satırları ve sayılan coinler config/mining-profit-calc-debug.log dosyasına yazılır. Sayım yanlışsa bu dosyayı gönder."),
+			new Entry("help", "/kazanc help", "Bu liste",
+				"/kazanc yardim da aynı listeyi gösterir."))));
+
+	/** Things the mod does on its own, so the player knows what is and isn't counted. */
+	public static final List<String> NOTES = List.of(
+		"Sayılır: sack mesajlarındaki mining itemleri ve gemler, frozen corpse loot'u, /pickupstash ile gelenler.",
+		"Sayılmaz: envanterden ya da Sack menüsünden sack'e koyulanlar, /craft ile yapılanlar, sack'ten alınanlar.",
+		"Değerler sitedeki Mining sekmesinin en kârlı yoluyla hesaplanır. Kutuyu T ile sohbeti açıp sürükleyebilir, köşesinden büyütebilirsin.");
+}
