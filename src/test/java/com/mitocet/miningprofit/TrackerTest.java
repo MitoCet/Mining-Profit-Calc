@@ -7,6 +7,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TrackerTest {
 	private static final Prices PRICES = Prices.parse("""
@@ -324,5 +325,114 @@ class TrackerTest {
 		t.onSackMessage(List.of("nothing"), 1000);
 		t.start(2000);
 		assertEquals(List.of(), t.warnings);
+	}
+
+	@Test
+	void timeStopsWhileIdleAndGoesOnWithTheNextEarning() {
+		Tracker t = running();
+		t.onSackMessage(List.of("  +10 Tungsten (Mining Sack)"), 30_000);
+		// Nothing for a long while: the time stops 90 s after the last earning.
+		assertFalse(t.idle(100_000));
+		assertTrue(t.idle(200_000));
+		assertEquals(120_000, t.sessionMs(200_000));
+		assertEquals(120_000, t.sessionMs(500_000));
+		// Earning again starts the time from there.
+		t.onSackMessage(List.of("  +10 Tungsten (Mining Sack)"), 500_000);
+		assertFalse(t.idle(500_000));
+		assertEquals(130_000, t.sessionMs(510_000));
+		assertEquals(130_000, t.totalMs(510_000));
+		t.stop(520_000);
+		assertEquals(140_000, t.sessionMs(900_000));
+	}
+
+	@Test
+	void idlePauseCanBeOff() {
+		Tracker t = running();
+		t.idleMs = 0;
+		assertFalse(t.idle(1_000_000));
+		assertEquals(1_000_000, t.sessionMs(1_000_000));
+	}
+
+	@Test
+	void supercraftedItemsAreNotCounted() {
+		Tracker t = running();
+		t.onSackMessage(List.of("  -1,600 Glacite (Glacite Sack)"), 1000);
+		t.onChatLine("You Supercrafted Enchanted Glacite x10!", 2000);
+		double c = t.onSackMessage(List.of("  +10 Enchanted Glacite (Glacite Sack)\n  +50 Glacite (Glacite Sack)"), 20_000);
+		assertEquals(50 * 10, c, 1e-9);
+		// Only that one sack message: later Enchanted Glacite (e.g. from Compact) counts again.
+		assertEquals(1600, t.onSackMessage(List.of("  +1 Enchanted Glacite (Glacite Sack)"), 50_000), 1e-9);
+	}
+
+	@Test
+	void oldSupercraftIsForgotten() {
+		Tracker t = running();
+		t.onChatLine("You Supercrafted Enchanted Glacite!", 1000);
+		assertEquals(1600, t.onSackMessage(List.of("  +1 Enchanted Glacite (Glacite Sack)"), 40_000), 1e-9);
+	}
+
+	@Test
+	void nothingCountedThroughTheSackMenu() {
+		Tracker t = running();
+		t.onSackMenu(true, 1000);
+		assertEquals(0, t.onSackMessage(List.of("  +100 Tungsten (Mining Sack)"), 2000), 1e-9);
+		t.onSackMenu(false, 3000);
+		assertEquals(0, t.onSackMessage(List.of("  +100 Tungsten (Mining Sack)"), 10_000), 1e-9);
+		assertEquals(100 * 100, t.onSackMessage(List.of("  +100 Tungsten (Mining Sack)"), 20_000), 1e-9);
+		assertTrue(Tracker.isSackMenu("Mining Sack"));
+		assertTrue(Tracker.isSackMenu("Sack of Sacks"));
+		assertFalse(Tracker.isSackMenu("Chest"));
+	}
+
+	@Test
+	void stashStillCountsThroughTheSackMenu() {
+		Tracker t = running();
+		t.onInventory(List.of(), 0);
+		t.onStashPickup(1000);
+		t.onInventory(List.of(Map.entry("Tungsten", 100)), 1500);
+		t.onSackMenu(true, 2000);
+		t.onInventory(List.of(), 2500);
+		assertEquals(100 * 100, t.onSackMessage(List.of("  +100 Tungsten (Mining Sack)"), 3000), 1e-9);
+	}
+
+	private static void corpse(Tracker t, String type, long now) {
+		for (String line : Tracker.lines("  " + type + " CORPSE LOOT!\n  REWARDS\n    Tungsten x10")) t.onChatLine(line, now);
+		t.onChatLine("", now + 100);
+	}
+
+	@Test
+	void corpseKeysAreKeptApart() {
+		Tracker t = running();
+		corpse(t, "UMBER", 1000);
+		corpse(t, "LAPIS", 20_000);
+		corpse(t, "UMBER", 40_000);
+		Breakdown b = t.sessionBreakdown;
+		// Earnings stay as they were; the keys are only taken off when asked.
+		assertEquals(3 * 10 * 100, t.sessionCoins, 1e-9);
+		assertEquals(2 * 50000, b.keyCoins, 1e-9);
+		assertEquals("Anahtar: 2 Umber Key · -100,0k", b.keyText());
+		assertEquals(3000, Tracker.net(t.sessionCoins, b, false), 1e-9);
+		assertEquals(3000 - 100_000, Tracker.net(t.sessionCoins, b, true), 1e-9);
+		assertEquals(2 * 50000, t.totalBreakdown.keyCoins, 1e-9);
+		t.end(60_000);
+		assertEquals(0, t.sessionBreakdown.keyCoins, 1e-9);
+		assertEquals(null, t.sessionBreakdown.keyText());
+		assertEquals(2 * 50000, t.totalBreakdown.keyCoins, 1e-9);
+	}
+
+	@Test
+	void resourcefulKeepsTheKey() {
+		Tracker t = running();
+		// Before the loot...
+		t.onChatLine("LUCKY! Your Resourceful perk saved your key from being consumed!", 1000);
+		corpse(t, "UMBER", 1500);
+		assertEquals(0, t.sessionBreakdown.keyCoins, 1e-9);
+		// ...or right after it.
+		corpse(t, "UMBER", 30_000);
+		t.onChatLine("LUCKY! Your Resourceful perk saved your key from being consumed!", 30_500);
+		assertEquals(0, t.sessionBreakdown.keyCoins, 1e-9);
+		// The next corpse uses its key again.
+		corpse(t, "UMBER", 32_000);
+		assertEquals(50000, t.sessionBreakdown.keyCoins, 1e-9);
 	}
 }

@@ -29,6 +29,14 @@ public final class Tracker {
 	private static final Pattern CORPSE_HEADER = Pattern.compile("CORPSE LOOT!");
 	private static final Pattern AMOUNT_FIRST = Pattern.compile("^\\+?([\\d,.]+)x?\\s+(.+)$");
 	private static final Pattern AMOUNT_LAST = Pattern.compile("^(.+?)\\s+x([\\d,.]+)$");
+	// Message formats below are as SkyHanni reads them (github.com/hannibal002/SkyHanni, LGPL-2.1),
+	// with colour codes stripped: SuperCraftFeatures.craftedPattern and CorpseLoot.
+	/** "You Supercrafted Enchanted Mithril x3!": made with /craft (from the sacks), not mined. */
+	private static final Pattern SUPERCRAFT = Pattern.compile("^You Supercrafted (.+?)(?: x[\\d,]+)?!$");
+	/** "TUNGSTEN CORPSE LOOT!": the word before is the corpse type, which says the key it used. */
+	private static final Pattern CORPSE_TYPE = Pattern.compile("(\\w+) CORPSE LOOT!");
+	/** The Resourceful perk kept the key. */
+	private static final Pattern KEY_SAVED = Pattern.compile("^LUCKY! Your Resourceful perk saved your key from being consumed!$");
 
 	private final Supplier<Prices> prices;
 
@@ -84,6 +92,8 @@ public final class Tracker {
 	}
 
 	public void start(long now) {
+		lastActive = now;
+		supercrafted.clear();
 		warnings.clear();
 		lastSackKey = null;
 		sessionCoins = 0;
@@ -98,7 +108,7 @@ public final class Tracker {
 
 	public void stop(long now) {
 		if (!running()) return;
-		long d = now - runningSince;
+		long d = segmentMs(now);
 		sessionMs += d;
 		totalMs += d;
 		runningSince = -1;
@@ -116,15 +126,18 @@ public final class Tracker {
 		gained.clear();
 		lost.clear();
 		usedInSacks.clear();
+		supercrafted.clear();
 	}
 
 	public void resume(long now) {
-		if (!running()) runningSince = now;
+		if (running()) return;
+		runningSince = now;
+		lastActive = now;
 	}
 
 	public void resetTotal(long now) {
 		if (running()) {
-			sessionMs += now - runningSince;
+			sessionMs += segmentMs(now);
 			runningSince = now;
 		}
 		totalCoins = 0;
@@ -133,19 +146,53 @@ public final class Tracker {
 	}
 
 	public long sessionMs(long now) {
-		return sessionMs + (running() ? now - runningSince : 0);
+		return sessionMs + segmentMs(now);
 	}
 
 	public long totalMs(long now) {
-		return totalMs + (running() ? now - runningSince : 0);
+		return totalMs + segmentMs(now);
+	}
+
+	// ---------- pausing while idle ----------
+	/**
+	 * With nothing earned for this long the time stops (like SkyHanni's trackers), so a break
+	 * does not lower the per hour figure; the next earning starts it again. 0 = never.
+	 * Sack messages come every 30 seconds, so this has to be well above that.
+	 */
+	public long idleMs = 90_000;
+	private long lastActive;
+
+	/** Time counted since the running time last started: up to idleMs after the last earning. */
+	private long segmentMs(long now) {
+		if (!running()) return 0;
+		long end = idleMs > 0 ? Math.min(now, lastActive + idleMs) : now;
+		return Math.max(0, end - runningSince);
+	}
+
+	/** Running, but nothing earned for idleMs: the time is not counting. */
+	public boolean idle(long now) {
+		return running() && idleMs > 0 && now > lastActive + idleMs;
+	}
+
+	/** Something was earned: the time counts again from here if it had stopped. */
+	private void active(long now) {
+		if (!running()) return;
+		if (idle(now)) {
+			long d = segmentMs(now);
+			sessionMs += d;
+			totalMs += d;
+			runningSince = now;
+		}
+		lastActive = now;
 	}
 
 	public static double perHour(double coins, long ms) {
 		return ms < 60_000 ? 0 : coins / (ms / 3_600_000.0);
 	}
 
-	private void earn(double coins) {
+	private void earn(double coins, long now) {
 		if (coins <= 0) return;
+		active(now);
 		sessionCoins += coins;
 		totalCoins += coins;
 	}
@@ -188,6 +235,12 @@ public final class Tracker {
 		}
 		lastSackKey = key;
 		lastSackAt = now;
+		// Put in or taken out through a Sack menu (open, or closed just now): not mined.
+		boolean menu = sackMenuOpen || (sackMenuClosedAt >= 0 && now - sackMenuClosedAt <= SACK_MENU_MS);
+		// What /craft just made went straight into the sacks: not mined (only this message).
+		dropOldSupercrafts(now);
+		Map<String, Long> crafted = new HashMap<>(supercrafted);
+		supercrafted.clear();
 		int read = 0;
 		for (String hover : distinct) {
 			// A long list ends with "and N other items": those are not shown, so not counted.
@@ -203,10 +256,17 @@ public final class Tracker {
 				}
 				if (item == null || !item.mining()) continue;
 				if (amount > 0) {
+					if (crafted.containsKey(item.id())) {
+						// Its ingredients taken out of the sacks were used for this: forget them.
+						usedInSacks.remove(item.family());
+						continue;
+					}
 					amount -= useCredit(item.id(), amount);
 					double byHand = fromInventory(item.id(), amount);
 					amount -= byHand;
-					amount += fromStash(item, byHand);
+					double stashed = fromStash(item, byHand);
+					if (menu) amount = 0;
+					amount += stashed;
 					if (amount > 0) in.add(new Part(item, amount));
 				} else if (amount < 0) {
 					double left = toInventory(item.family(), -amount * item.value(), p);
@@ -231,8 +291,36 @@ public final class Tracker {
 		}
 		double coins = 0;
 		for (double v : byFamily.values()) coins += v;
-		earn(coins);
+		earn(coins, now);
 		return coins;
+	}
+
+	// ---------- sack menu and /craft ----------
+	/** After a Sack menu closes, sack changes this soon still come from it (SkyHanni uses 10 s). */
+	public static final long SACK_MENU_MS = 10_000;
+	/** A supercraft is matched with a sack message this long (SkyHanni uses 30 s). */
+	public static final long SUPERCRAFT_MS = 30_000;
+	private boolean sackMenuOpen;
+	private long sackMenuClosedAt = -1;
+	// Item id -> when it was supercrafted.
+	private final Map<String, Long> supercrafted = new HashMap<>();
+
+	/** A menu with "Sack" in its title opened (true) or closed (false). */
+	public void onSackMenu(boolean open, long now) {
+		if (open) sackMenuOpen = true;
+		else if (sackMenuOpen) {
+			sackMenuOpen = false;
+			sackMenuClosedAt = now;
+		}
+	}
+
+	/** True for a menu title that belongs to the sacks ("Mining Sack", "Sack of Sacks"…). */
+	public static boolean isSackMenu(String title) {
+		return strip(title).contains("Sack");
+	}
+
+	private void dropOldSupercrafts(long now) {
+		supercrafted.values().removeIf((t) -> now - t > SUPERCRAFT_MS);
 	}
 
 	// Items taken out of the sacks and used there (crafted), per family, not yet matched.
@@ -410,8 +498,35 @@ public final class Tracker {
 			onStashPickup(now);
 			return 0;
 		}
+		Matcher sc = SUPERCRAFT.matcher(line);
+		if (sc.matches()) {
+			Prices.Item item = prices.get().byName(sc.group(1));
+			if (item != null && item.mining()) supercrafted.put(item.id(), now);
+			return 0;
+		}
+		if (KEY_SAVED.matcher(line).matches()) {
+			keySavedAt = now;
+			// It can also come right after the loot: give that key back.
+			if (lastKey != null && now - lastKeyAt <= KEY_SAVED_MS) {
+				useKey(lastKey, -1);
+				lastKey = null;
+				keySavedAt = -KEY_SAVED_MS - 1;
+			}
+			return 0;
+		}
 		if (CORPSE_HEADER.matcher(line).find()) {
 			if (corpseOpen) closeCorpse();
+			Matcher type = CORPSE_TYPE.matcher(line);
+			String key = type.find() ? KEYS.get(type.group(1).toUpperCase(java.util.Locale.ROOT)) : null;
+			lastKey = null;
+			if (key != null && running()) {
+				if (now - keySavedAt <= KEY_SAVED_MS) keySavedAt = -KEY_SAVED_MS - 1;
+				else {
+					useKey(key, 1);
+					lastKey = key;
+					lastKeyAt = now;
+				}
+			}
 			corpseOpen = true;
 			corpseRewards = false;
 			corpseRead = 0;
@@ -428,6 +543,33 @@ public final class Tracker {
 			return 0;
 		}
 		return corpseReward(line, now);
+	}
+
+	// ---------- corpse keys ----------
+	/** Key each corpse type uses (Lapis needs none), as in SkyHanni's CorpseType. */
+	private static final Map<String, String> KEYS = Map.of(
+		"TUNGSTEN", "TUNGSTEN_KEY", "UMBER", "UMBER_KEY", "VANGUARD", "SKELETON_KEY");
+	/** The Resourceful message and the loot it belongs to come this close together. */
+	public static final long KEY_SAVED_MS = 10_000;
+	private long keySavedAt = -KEY_SAVED_MS - 1;
+	private String lastKey;
+	private long lastKeyAt;
+
+	/**
+	 * A key was used (n = 1) or given back (n = -1). Kept apart from the earnings, valued at the
+	 * price of now: the box takes it off only while key costs are on (/kazanc anahtar).
+	 */
+	private void useKey(String id, int n) {
+		Prices.Item key = prices.get().byId(id);
+		double value = key == null ? 0 : key.value();
+		String name = key != null && key.name() != null ? key.name() : Breakdown.title(id);
+		sessionBreakdown.addKey(name, n, n * value);
+		totalBreakdown.addKey(name, n, n * value);
+	}
+
+	/** Earnings with the keys used taken off when {@code keys} is on. */
+	public static double net(double coins, Breakdown bd, boolean keys) {
+		return keys ? coins - bd.keyCoins : coins;
 	}
 
 	private void closeCorpse() {
@@ -466,7 +608,7 @@ public final class Tracker {
 			note(Breakdown.CORPSE, row, "", count);
 			noteCoins(Breakdown.CORPSE, row, coins);
 		}
-		earn(coins);
+		earn(coins, now);
 		return coins;
 	}
 

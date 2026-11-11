@@ -28,9 +28,35 @@ public final class Breakdown {
 	}
 
 	public Map<String, Map<String, Row>> cats = new HashMap<>();
+	/** Corpse keys used (name -> count) and what they were worth when used. */
+	public Map<String, Double> keys = new HashMap<>();
+	public double keyCoins;
 
 	public void clear() {
 		cats.clear();
+		keys = new HashMap<>();
+		keyCoins = 0;
+	}
+
+	public void addKey(String name, int n, double coins) {
+		if (keys == null) keys = new HashMap<>();
+		keys.merge(name, (double) n, Double::sum);
+		if (keys.get(name) <= 0) keys.remove(name);
+		keyCoins = Math.max(0, keyCoins + coins);
+	}
+
+	/** "Anahtar: 2 Tungsten Key, 1 Umber Key · -8,4M" or null when no key was used. */
+	public String keyText() {
+		if (keys == null || keys.isEmpty()) return null;
+		List<String> names = new ArrayList<>(keys.keySet());
+		names.sort(null);
+		StringBuilder sb = new StringBuilder("Anahtar:");
+		boolean first = true;
+		for (String n : names) {
+			sb.append(first ? " " : ", ").append(Format.count(keys.get(n))).append(' ').append(n);
+			first = false;
+		}
+		return sb.append(" · -").append(Format.coins(keyCoins)).toString();
 	}
 
 	private Row row(String cat, String row) {

@@ -29,6 +29,10 @@ public final class Config {
 	public Set<String> open = new HashSet<>();
 	/** Write what the mod reads to mining-profit-calc-debug.log (/kazanc kayit). */
 	public boolean debugLog;
+	/** Take the corpse keys used off the earnings (/kazanc anahtar). Off: keys are not counted. */
+	public boolean keyCost;
+	/** Seconds with nothing earned after which the time stops (/kazanc bosta); 0 = never. */
+	public int idleSeconds = 90;
 	public Breakdown sessionBreakdown;
 	public Breakdown totalBreakdown;
 
