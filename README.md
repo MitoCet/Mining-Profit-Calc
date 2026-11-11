@@ -68,7 +68,7 @@ Modun sack mesajlarını doğru okuyup okumadığını Hypixel API'deki gerçek 
 
 - `/kazanc baslat`: API'den başlangıç sack sayıları alınır.
 - O andan sonra mining itemlerinin her sack mesajı satırı (+ ve −, kazanç kurallarından bağımsız) toplanır, session dursa bile.
-- `/kazanc bitir` ya da `/kazanc kontrol`: API'deki değişim (şimdi − başlangıç) modun okuduğuyla item item karşılaştırılır. Tutmayan itemler sohbete yazılır (`API +1.000, mod +500, fark +500`) ve kutuda ⚠ uyarısı çıkar. Kazanç kendiliğinden düzeltilmez.
+- `/kazanc bitir` ya da `/kazanc kontrol`: API'deki değişim (şimdi − başlangıç) modun okuduğuyla item item karşılaştırılır. Tutmayan itemler sohbete yazılır (`Tungsten: gerçek +1.000, mod +500 (fark +500, +53.3k)`), altında "Mod: X → API'ye göre gerçek: ~Y" satırı çıkar ve kutuda ⚠ uyarısı (`/kazanc uyari`) verilir. Kutudaki kazanç kendiliğinden düzeltilmez.
 - Hypixel sack verisini birkaç dakika geç kaydeder. API hiç değişmemişse "henüz güncellemedi" der; 2-3 dakika sonra `/kazanc kontrol` ile tekrar bakılır. Başlangıç sayısı da eski olabileceği için tek seferlik bir fark gecikmeden kaynaklanabilir; tekrar bakınca da kalan fark, kaçan ya da iki kez okunan mesaj demektir.
 - Sack doluyken envantere düşenler ne sack'e ne mesaja girer, karşılaştırmayı bozmaz. Mesajsız sack değişimleri (ör. Bazaar'a sack'ten satış, mesaj gelmiyorsa) fark olarak görünür.
 

@@ -181,7 +181,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 					say(c, "Session bitti: " + Format.coins(coins) + " (" + Format.time(ms) + ", "
 						+ Format.coins(Tracker.perHour(coins, ms)) + "/sa). Session sıfırlandı, Toplam'a eklendi."
 						+ " Yeni session için /kazanc baslat.");
-					if (hasKey() && config.sackCheck.hasBase()) check(c.getSource());
+					if (hasKey() && config.sackCheck.hasBase()) check(c.getSource(), coins);
 					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("devam").executes((c) -> {
@@ -285,7 +285,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 						takeBase(c.getSource());
 						return Command.SINGLE_SUCCESS;
 					}
-					check(c.getSource());
+					check(c.getSource(), Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost));
 					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
@@ -414,7 +414,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 	}
 
 	/** Compares the API's sack counts now with the base and what the mod read since. */
-	private void check(FabricClientCommandSource src) {
+	private void check(FabricClientCommandSource src, double modCoins) {
 		say(src, "Sack sayıları API'den karşılaştırılıyor...");
 		fetchSacks(src, (counts) -> {
 			SackCheck.Result r = config.sackCheck.compare(counts, prices);
@@ -423,25 +423,30 @@ public final class MiningProfitClient implements ClientModInitializer {
 				return;
 			}
 			if (r.diffs().isEmpty()) {
-				say(src, "§aSack sayıları tutuyor§r: API ile modun okuduğu aynı (" + r.matched() + " item).");
+				say(src, "§aSack sayıları tutuyor§r: API ile modun okuduğu aynı (" + r.matched() + " item). Kazanç: " + Format.coins(modCoins) + ".");
 				return;
 			}
-			say(src, "§eFark var§r (" + r.matched() + " item tutuyor). API'deki değişim / modun okuduğu:");
+			say(src, "§e⚠ Fark var§r (" + r.matched() + " item tutuyor). Gerçek (API) / modun okuduğu:");
+			double missingCoins = 0;
 			int shown = 0;
 			for (SackCheck.Diff d : r.diffs()) {
-				if (++shown > 12) {
-					say(src, "... ve " + (r.diffs().size() - 12) + " item daha.");
-					break;
-				}
 				Prices.Item item = prices.byId(d.id());
+				double value = item != null ? item.value() : 0;
+				missingCoins += d.missing() * value;
+				if (++shown > 12) continue;
 				String name = item != null && item.name() != null ? item.name() : d.id();
-				say(src, "⚠ " + name + ": API " + signed(d.api()) + ", mod " + signed(d.read())
-					+ " (fark " + signed(d.missing()) + ")");
+				say(src, "⚠ " + name + ": gerçek " + signed(d.api()) + ", mod " + signed(d.read())
+					+ " (fark " + signed(d.missing()) + ", " + (d.missing() * value >= 0 ? "+" : "")
+					+ Format.coins(d.missing() * value) + ")");
 			}
-			say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Kalıcıysa mesaj kaçmış ya da iki kez okunmuştur (/kazanc kayit ile kaydı açık tut).");
+			if (shown > 12) say(src, "... ve " + (shown - 12) + " item daha.");
+			say(src, "Mod: " + Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins)
+				+ "§r (fark " + (missingCoins >= 0 ? "+" : "") + Format.coins(missingCoins) + ").");
+			say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Kalıcıysa mesaj kaçmış ya da iki kez okunmuştur (/kazanc kayit ile kaydı açık tut). Envanterden sack'e koyduğun ya da sack'ten sattığın itemler de API farkına girer.");
 			long now = System.currentTimeMillis();
 			long before = tracker.warningCount;
-			tracker.warn("API sack sayısıyla " + r.diffs().size() + " itemde fark (/kazanc kontrol)");
+			tracker.warn("API sack sayısıyla " + r.diffs().size() + " itemde fark: mod " + Format.coins(modCoins)
+				+ ", gerçek ~" + Format.coins(modCoins + missingCoins));
 			logWarnings(before, now);
 		});
 	}
