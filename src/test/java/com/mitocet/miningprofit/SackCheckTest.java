@@ -67,8 +67,8 @@ class SackCheckTest {
 	void parsesSelectedProfile() {
 		String json = """
 			{"success":true,"profiles":[
-			 {"selected":false,"members":{"abc":{"inventory":{"sack_counts":{"TUNGSTEN":1}}}}},
-			 {"selected":true,"members":{"abc":{"inventory":{"sack_counts":{"TUNGSTEN":42,"GLACITE":7}}}}}
+			 {"selected":false,"members":{"abc":{"inventory":{"sacks_counts":{"TUNGSTEN":1}}}}},
+			 {"selected":true,"members":{"abc":{"inventory":{"sacks_counts":{"TUNGSTEN":42,"GLACITE":7}}}}}
 			]}""";
 		assertEquals(Map.of("TUNGSTEN", 42L, "GLACITE", 7L), SackCheck.parseSacks(json, "a-b-c"));
 	}
@@ -84,5 +84,17 @@ class SackCheckTest {
 	void noSacksInApi() {
 		assertThrows(IllegalStateException.class, () -> SackCheck.parseSacks(
 			"{\"success\":true,\"profiles\":[{\"selected\":true,\"members\":{\"abc\":{}}}]}", "abc"));
+	}
+
+	@Test
+	void oldSackPlace() {
+		assertEquals(Map.of("MITHRIL_ORE", 5L), SackCheck.parseSacks(
+			"{\"success\":true,\"profiles\":[{\"selected\":true,\"members\":{\"abc\":{\"sacks_counts\":{\"MITHRIL_ORE\":5}}}}]}", "abc"));
+	}
+
+	@Test
+	void inventoryOnButSacksEmpty() {
+		assertTrue(SackCheck.parseSacks(
+			"{\"success\":true,\"profiles\":[{\"selected\":true,\"members\":{\"abc\":{\"inventory\":{\"inv_contents\":{}}}}}]}", "abc").isEmpty());
 	}
 }
