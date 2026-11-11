@@ -427,9 +427,12 @@ class TrackerTest {
 		t.onChatLine("LUCKY! Your Resourceful perk saved your key from being consumed!", 1000);
 		corpse(t, "UMBER", 1500);
 		assertEquals(0, t.sessionBreakdown.keyCoins, 1e-9);
-		// ...or right after it.
-		corpse(t, "UMBER", 30_000);
-		t.onChatLine("LUCKY! Your Resourceful perk saved your key from being consumed!", 30_500);
+		// ...or among its lines.
+		t.onChatLine("  UMBER CORPSE LOOT!", 30_000);
+		t.onChatLine("LUCKY! Your Resourceful perk saved your key from being consumed!", 30_100);
+		t.onChatLine("  REWARDS", 30_200);
+		t.onChatLine("    Tungsten x10", 30_300);
+		t.onChatLine("", 30_400);
 		assertEquals(0, t.sessionBreakdown.keyCoins, 1e-9);
 		// The next corpse uses its key again.
 		corpse(t, "UMBER", 32_000);

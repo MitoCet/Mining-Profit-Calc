@@ -504,14 +504,13 @@ public final class Tracker {
 			if (item != null && item.mining()) supercrafted.put(item.id(), now);
 			return 0;
 		}
+		// As SkyHanni reads it: the message keeps the key of the corpse being looted, or else of
+		// the next one.
 		if (KEY_SAVED.matcher(line).matches()) {
-			keySavedAt = now;
-			// It can also come right after the loot: give that key back.
-			if (lastKey != null && now - lastKeyAt <= KEY_SAVED_MS) {
+			if (corpseOpen && lastKey != null) {
 				useKey(lastKey, -1);
 				lastKey = null;
-				keySavedAt = -KEY_SAVED_MS - 1;
-			}
+			} else keySaved = true;
 			return 0;
 		}
 		if (CORPSE_HEADER.matcher(line).find()) {
@@ -520,11 +519,10 @@ public final class Tracker {
 			String key = type.find() ? KEYS.get(type.group(1).toUpperCase(java.util.Locale.ROOT)) : null;
 			lastKey = null;
 			if (key != null && running()) {
-				if (now - keySavedAt <= KEY_SAVED_MS) keySavedAt = -KEY_SAVED_MS - 1;
+				if (keySaved) keySaved = false;
 				else {
 					useKey(key, 1);
 					lastKey = key;
-					lastKeyAt = now;
 				}
 			}
 			corpseOpen = true;
@@ -549,11 +547,10 @@ public final class Tracker {
 	/** Key each corpse type uses (Lapis needs none), as in SkyHanni's CorpseType. */
 	private static final Map<String, String> KEYS = Map.of(
 		"TUNGSTEN", "TUNGSTEN_KEY", "UMBER", "UMBER_KEY", "VANGUARD", "SKELETON_KEY");
-	/** The Resourceful message and the loot it belongs to come this close together. */
-	public static final long KEY_SAVED_MS = 10_000;
-	private long keySavedAt = -KEY_SAVED_MS - 1;
+	/** The Resourceful perk kept the key of the next corpse. */
+	private boolean keySaved;
+	/** Key of the corpse whose loot is being read (null when none was used). */
 	private String lastKey;
-	private long lastKeyAt;
 
 	/**
 	 * A key was used (n = 1) or given back (n = -1). Kept apart from the earnings, valued at the
