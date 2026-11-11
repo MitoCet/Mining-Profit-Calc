@@ -33,6 +33,10 @@ public final class Config {
 	public boolean keyCost;
 	/** Seconds with nothing earned after which the time stops (/kazanc bosta); 0 = never. */
 	public int idleSeconds = 90;
+	/** Hypixel API key for the sack check (/kazanc api). Stays only in this file on this computer. */
+	public String apiKey;
+	/** Sack check against the Hypixel API: base counts and what was read since. */
+	public SackCheck sackCheck;
 	public Breakdown sessionBreakdown;
 	public Breakdown totalBreakdown;
 
