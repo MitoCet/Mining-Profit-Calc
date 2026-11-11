@@ -86,6 +86,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			LOG.warn("Could not read saved mining values: {}", e.toString());
 		}
 		debug = new DebugLog(FabricLoader.getInstance().getConfigDir().resolve("mining-profit-calc-debug.log"));
+		debug.startFresh();
 		tracker.totalCoins = config.totalCoins;
 		tracker.totalMs = config.totalMs;
 		tracker.sessionCoins = config.sessionCoins;
