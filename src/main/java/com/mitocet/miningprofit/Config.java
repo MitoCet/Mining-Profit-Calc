@@ -27,6 +27,8 @@ public final class Config {
 	public boolean big;
 	/** Categories opened in the big box. */
 	public Set<String> open = new HashSet<>();
+	/** Write what the mod reads to mining-profit-calc-debug.log (/kazanc kayit). */
+	public boolean debugLog;
 	public Breakdown sessionBreakdown;
 	public Breakdown totalBreakdown;
 
