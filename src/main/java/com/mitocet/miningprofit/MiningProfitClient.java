@@ -96,6 +96,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		tracker.idleMs = Math.max(0, config.idleSeconds) * 1000L;
 		if (config.sackCheck == null) config.sackCheck = new SackCheck();
 		if (config.sackCheck.read == null) config.sackCheck.read = new java.util.HashMap<>();
+		if (config.sackCheck.corpse == null) config.sackCheck.corpse = new java.util.HashMap<>();
+		tracker.corpseMining = (id, n) -> config.sackCheck.onCorpseItem(id, n);
 
 		ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor((r) -> {
 			Thread t = new Thread(r, "miningprofit-prices");
@@ -147,6 +149,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register((client) -> {
 			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
 			if (ticks % 10 == 0) readInventory(client);
+			autoCheckTick(client);
 			if (++ticks >= 600) {
 				ticks = 0;
 				if (tracker.running()) save();
@@ -159,6 +162,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				.then(ClientCommands.literal("baslat").executes((c) -> {
 					long now = System.currentTimeMillis();
 					tracker.start(now);
+					config.sackCheck.endedCoins = null;
 					logControl("start", now);
 					save();
 					refreshPricesAsync();
@@ -179,12 +183,21 @@ public final class MiningProfitClient implements ClientModInitializer {
 					long ms = tracker.sessionMs(now);
 					double coins = Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost);
 					tracker.end(now);
+					// /kazanc kontrol after this still compares the session that just ended.
+					config.sackCheck.endedCoins = coins;
 					logControl("end", now);
 					save();
 					say(c, "Session bitti: " + Format.coins(coins) + " (" + Format.time(ms) + ", "
 						+ Format.coins(Tracker.perHour(coins, ms)) + "/sa). Session sıfırlandı, Toplam'a eklendi."
 						+ " Yeni session için /kazanc baslat.");
-					if (hasKey() && config.sackCheck.hasBase()) check(c.getSource(), coins);
+					if (hasKey() && config.sackCheck.hasBase()) {
+						check(c.getSource(), false);
+						// Hypixel often saves the last items minutes later: look again on its own.
+						if (config.autoFix) {
+							autoCheckAt = now + AUTO_CHECK_MS;
+							autoTries = 0;
+						}
+					}
 					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("devam").executes((c) -> {
@@ -288,9 +301,24 @@ public final class MiningProfitClient implements ClientModInitializer {
 						takeBase(c.getSource());
 						return Command.SINGLE_SUCCESS;
 					}
-					check(c.getSource(), Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost));
+					check(c.getSource(), false);
 					return Command.SINGLE_SUCCESS;
 				}))
+				.then(ClientCommands.literal("duzelt")
+					.executes((c) -> {
+						fix(c.getSource(), false);
+						return Command.SINGLE_SUCCESS;
+					})
+					.then(ClientCommands.argument("mod", com.mojang.brigadier.arguments.StringArgumentType.word()).executes((c) -> {
+						String mode = com.mojang.brigadier.arguments.StringArgumentType.getString(c, "mod").toLowerCase(java.util.Locale.ROOT);
+						if (mode.startsWith("oto")) config.autoFix = true;
+						else if (mode.equals("elle")) config.autoFix = false;
+						else return say(c, "Kullanım: /kazanc duzelt (eksikleri ekler), /kazanc duzelt otomatik ya da /kazanc duzelt elle.");
+						save();
+						return say(c, config.autoFix
+							? "Otomatik: kontrolde bulunan eksikler kendiliğinden eklenir, sunucu değişiminden ~3 dk sonra kontrol kendiliğinden yapılır."
+							: "Elle: eksikler sadece /kazanc duzelt yazınca eklenir.");
+					})))
 				.then(ClientCommands.literal("help").executes(this::help))
 				.then(ClientCommands.literal("yardim").executes(this::help))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
@@ -415,7 +443,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		return Command.SINGLE_SUCCESS;
 	}
 
-	private static int say(CommandContext<FabricClientCommandSource> c, String text) {
+	private int say(CommandContext<FabricClientCommandSource> c, String text) {
+		lastSrc = c.getSource();
 		c.getSource().sendFeedback(Component.literal("§6[Kazanç] §r" + text));
 		return Command.SINGLE_SUCCESS;
 	}
@@ -442,26 +471,62 @@ public final class MiningProfitClient implements ClientModInitializer {
 		});
 	}
 
-	/** Compares the API's sack counts now with the base and what the mod read since. */
-	private void check(FabricClientCommandSource src, double modCoins) {
-		say(src, "Sack sayıları API'den karşılaştırılıyor...");
-		fetchSacks(src, (counts) -> {
+	/** Earnings the check compares: the running session's, or right after /kazanc bitir the ended one's. */
+	private double checkedCoins(long now) {
+		boolean ended = !tracker.running() && tracker.sessionMs(now) == 0 && config.sackCheck.endedCoins != null;
+		return ended ? config.sackCheck.endedCoins : Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost);
+	}
+
+	/**
+	 * Compares the API's sack counts now with the base and what the mod read since. {@code auto}:
+	 * started by the mod itself (after a server change), so it stays quiet unless items are added.
+	 */
+	private void check(FabricClientCommandSource src, boolean auto) {
+		if (!auto) say(src, "Sack sayıları API'den karşılaştırılıyor...");
+		fetchSacks(src, auto, (counts) -> {
+			long now = System.currentTimeMillis();
+			double modCoins = checkedCoins(now);
 			SackCheck.Result r = config.sackCheck.compare(counts, prices);
 			if (r.apiUnchanged()) {
+				if (auto) {
+					// Hypixel has not saved yet: look once more a bit later.
+					if (autoTries++ < 2) autoCheckAt = now + AUTO_CHECK_MS;
+					return;
+				}
 				say(src, "Hypixel sack verisini henüz güncellemedi (birkaç dakika gecikebiliyor). 2-3 dk sonra /kazanc kontrol yaz.");
 				return;
 			}
+			config.sackCheck.setMissing(r.diffs());
 			if (r.diffs().isEmpty()) {
-				say(src, "§aSack sayıları tutuyor§r: API ile modun okuduğu aynı (" + r.matched() + " item). Kazanç: " + Format.coins(modCoins) + ".");
+				config.sackCheck.lastReport = null;
+				save();
+				if (!auto) say(src, "§aSack sayıları tutuyor§r: API ile modun okuduğu aynı (" + r.matched() + " item). Kazanç: " + Format.coins(modCoins) + ".");
 				return;
 			}
-			say(src, "§e⚠ Fark var§r (" + r.matched() + " item tutuyor). Gerçek (API) / modun okuduğu:");
 			double missingCoins = 0;
+			for (SackCheck.Diff d : r.diffs()) {
+				Prices.Item item = prices.byId(d.id());
+				missingCoins += d.missing() * (item != null ? item.value() : 0);
+			}
+			if (config.autoFix) {
+				fix(src, true);
+				return;
+			}
+			String fixHint = config.sackCheck.missing.isEmpty() ? ""
+				: " Eksikleri kazanca eklemek için §b/kazanc duzelt§r.";
+			// The same differences as the last check: one line, no new warning.
+			if (r.key().equals(config.sackCheck.lastReport)) {
+				if (!auto) say(src, "Önceki kontrolle aynı, değişen yok: " + r.diffs().size() + " itemde fark. Mod: "
+					+ Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins) + "§r." + fixHint);
+				return;
+			}
+			config.sackCheck.lastReport = r.key();
+			save();
+			say(src, "§e⚠ Fark var§r (" + r.matched() + " item tutuyor). Gerçek (API) / modun okuduğu:");
 			int shown = 0;
 			for (SackCheck.Diff d : r.diffs()) {
 				Prices.Item item = prices.byId(d.id());
 				double value = item != null ? item.value() : 0;
-				missingCoins += d.missing() * value;
 				if (++shown > 12) continue;
 				String name = item != null && item.name() != null ? item.name() : d.id();
 				say(src, "⚠ " + name + ": gerçek " + signed(d.api()) + ", mod " + signed(d.read())
@@ -470,14 +535,67 @@ public final class MiningProfitClient implements ClientModInitializer {
 			}
 			if (shown > 12) say(src, "... ve " + (shown - 12) + " item daha.");
 			say(src, "Mod: " + Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins)
-				+ "§r (fark " + (missingCoins >= 0 ? "+" : "") + Format.coins(missingCoins) + ").");
-			say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Kalıcıysa mesaj kaçmış ya da iki kez okunmuştur (/kazanc kayit ile kaydı açık tut). Envanterden sack'e koyduğun ya da sack'ten sattığın itemler de API farkına girer.");
-			long now = System.currentTimeMillis();
+				+ "§r (fark " + (missingCoins >= 0 ? "+" : "") + Format.coins(missingCoins) + ")." + fixHint);
+			say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Sunucu ya da Mineshaft değiştirince son sack mesajı gelmeyebilir; kalıcı fark çoğu zaman budur (ya da mesaj iki kez okunmuştur, /kazanc kayit). Envanterden sack'e koyduğun ya da sack'ten sattığın itemler de API farkına girer.");
 			long before = tracker.warningCount;
 			tracker.warn("API sack sayısıyla " + r.diffs().size() + " itemde fark: mod " + Format.coins(modCoins)
 				+ ", gerçek ~" + Format.coins(modCoins + missingCoins));
 			logWarnings(before, now);
 		});
+	}
+
+	/** Adds the items the last check found missing to the earnings (/kazanc duzelt, or on its own). */
+	private void fix(FabricClientCommandSource src, boolean auto) {
+		long now = System.currentTimeMillis();
+		// After /kazanc bitir the session is zero: only the all-time total gets it.
+		boolean session = tracker.running() || tracker.sessionMs(now) > 0 || config.sackCheck.endedCoins == null;
+		Map<String, Long> missing = config.sackCheck.takeMissing();
+		double coins = 0;
+		List<String> parts = new ArrayList<>();
+		for (Map.Entry<String, Long> e : missing.entrySet()) {
+			Prices.Item item = prices.byId(e.getKey());
+			if (item == null || item.value() <= 0) continue;
+			tracker.addFix(item, e.getValue(), session);
+			coins += e.getValue() * item.value();
+			parts.add(signed(e.getValue()) + " " + (item.name() != null ? item.name() : e.getKey()));
+		}
+		if (!session && config.sackCheck.endedCoins != null) config.sackCheck.endedCoins += coins;
+		save();
+		if (config.debugLog) debug.simple("fix", now);
+		if (coins <= 0) {
+			if (!auto) say(src, "Eklenecek eksik yok. Önce /kazanc kontrol yaz.");
+			return;
+		}
+		say(src, (auto ? "Sack mesajı gelmeyen itemler API'den eklendi: §a+" : "Eklendi: §a+") + Format.coins(coins) + "§r ("
+			+ String.join(", ", parts) + ")" + (session ? "." : ", session bittiği için sadece Toplam'a.")
+			+ (auto ? " Elle eklemek istersen: /kazanc duzelt elle" : ""));
+	}
+
+	/** After a server change the last sack message may never come: the API is checked this much later. */
+	private static final long AUTO_CHECK_MS = 180_000;
+	/** When the mod checks the API on its own next (-1 = not planned). */
+	private long autoCheckAt = -1;
+	private int autoTries;
+	/** Where the mod's own checks write to: the chat of the last /kazanc command. */
+	private FabricClientCommandSource lastSrc;
+	private LocalPlayer lastPlayer;
+
+	/** Every tick: a new player object means a new server (Hypixel makes one at each server change). */
+	private void autoCheckTick(Minecraft client) {
+		long now = System.currentTimeMillis();
+		LocalPlayer player = client.player;
+		if (player != null && player != lastPlayer) {
+			if (lastPlayer != null && config.autoFix && hasKey() && config.sackCheck.hasBase()
+				&& (tracker.running() || config.sackCheck.endedCoins != null)) {
+				autoCheckAt = now + AUTO_CHECK_MS;
+				autoTries = 0;
+			}
+			lastPlayer = player;
+		}
+		if (autoCheckAt >= 0 && now >= autoCheckAt) {
+			autoCheckAt = -1;
+			if (lastSrc != null && player != null && config.autoFix && hasKey() && config.sackCheck.hasBase()) check(lastSrc, true);
+		}
 	}
 
 	private static String signed(long n) {
@@ -486,10 +604,15 @@ public final class MiningProfitClient implements ClientModInitializer {
 
 	/** Gets the selected profile's sack counts off the game thread; answers on the game thread. */
 	private void fetchSacks(FabricClientCommandSource src, java.util.function.Consumer<Map<String, Long>> then) {
+		fetchSacks(src, false, then);
+	}
+
+	/** {@code quiet}: errors go only to the log (the mod's own checks). */
+	private void fetchSacks(FabricClientCommandSource src, boolean quiet, java.util.function.Consumer<Map<String, Long>> then) {
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer player = mc.player;
 		if (player == null) {
-			say(src, "Oyunda değilsin, API'ye bakılamadı.");
+			if (!quiet) say(src, "Oyunda değilsin, API'ye bakılamadı.");
 			return;
 		}
 		String uuid = player.getUUID().toString().replace("-", "");
@@ -515,6 +638,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			String err = error;
 			mc.execute(() -> {
 				if (got != null) then.accept(got);
+				else if (quiet) LOG.warn("Auto sack check: {}", err);
 				else say(src, "§c" + err);
 			});
 		}, "miningprofit-hypixel");

@@ -37,6 +37,12 @@ public final class Config {
 	public String apiKey;
 	/** Sack check against the Hypixel API: base counts and what was read since. */
 	public SackCheck sackCheck;
+	/**
+	 * Sack items the API shows but no sack message did (e.g. leaving a Mineshaft before the
+	 * message came): false = added only with /kazanc duzelt, true = added on their own, and the
+	 * API is checked ~3 min after a server change (/kazanc duzelt otomatik | elle).
+	 */
+	public boolean autoFix;
 	public Breakdown sessionBreakdown;
 	public Breakdown totalBreakdown;
 

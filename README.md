@@ -28,6 +28,7 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc anahtar` | Corpse anahtarlarını kazançtan düşmeyi açar / kapatır (varsayılan kapalı) |
 | `/kazanc api <anahtar>` | Hypixel API anahtarını kaydeder (sadece bu bilgisayarda, `config/mining-profit-calc.json`); `/kazanc api sil` siler |
 | `/kazanc kontrol` | Sack sayılarını Hypixel API ile karşılaştırır (aşağıya bak) |
+| `/kazanc duzelt [otomatik\|elle]` | Sack mesajı gelmeyen itemleri API'den kazanca ekler (varsayılan elle) |
 | `/kazanc bosta [sn]` | Kaç saniye kazanç gelmezse sürenin duracağını gösterir / ayarlar (varsayılan 90, 0 = hiç durmasın) |
 
 Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
@@ -69,7 +70,8 @@ Modun sack mesajlarını doğru okuyup okumadığını Hypixel API'deki gerçek 
 
 - `/kazanc baslat`: API'den başlangıç sack sayıları alınır.
 - O andan sonra mining itemlerinin her sack mesajı satırı (+ ve −, kazanç kurallarından bağımsız) toplanır, session dursa bile.
-- `/kazanc bitir` ya da `/kazanc kontrol`: API'deki değişim (şimdi − başlangıç) modun okuduğuyla item item karşılaştırılır. Tutmayan itemler sohbete yazılır (`Tungsten: gerçek +1.000, mod +500 (fark +500, +53.3k)`), altında "Mod: X → API'ye göre gerçek: ~Y" satırı çıkar ve kutuda ⚠ uyarısı (`/kazanc uyari`) verilir. Kutudaki kazanç kendiliğinden düzeltilmez.
+- `/kazanc bitir` ya da `/kazanc kontrol`: API'deki değişim (şimdi − başlangıç) modun okuduğuyla item item karşılaştırılır. Tutmayan itemler sohbete yazılır (`Tungsten: gerçek +1.000, mod +500 (fark +500, +53.3k)`), altında "Mod: X → API'ye göre gerçek: ~Y" satırı çıkar ve kutuda ⚠ uyarısı (`/kazanc uyari`) verilir. Aynı fark tekrar çıkarsa tek satır yazılır, yeni uyarı eklenmez. `/kazanc bitir`'den sonraki kontroller bitmiş session'ın kazancını kullanır. Corpse loot'undan sayılan mining itemleri, sack mesajı gelmese de okunmuş sayılır.
+- `/kazanc duzelt`: kontrolde eksik çıkan itemler (pozitif fark) kazanca eklenir; session bittiyse sadece Toplam'a. Mineshaft'tan ya da sunucudan son sack mesajı gelmeden çıkınca Hypixel o mesajı göndermiyor, bu komut onu telafi eder. `/kazanc duzelt otomatik`: eksikler kendiliğinden eklenir, sunucu değişiminden ve `/kazanc bitir`'den ~3 dk sonra kontrol kendiliğinden yapılır. Envanterden sack'e elle konan itemler de fark olarak görünür; otomatikte onlar da eklenir. `/kazanc duzelt elle` varsayılana döner.
 - Hypixel sack verisini birkaç dakika geç kaydeder. API hiç değişmemişse "henüz güncellemedi" der; 2-3 dakika sonra `/kazanc kontrol` ile tekrar bakılır. Başlangıç sayısı da eski olabileceği için tek seferlik bir fark gecikmeden kaynaklanabilir; tekrar bakınca da kalan fark, kaçan ya da iki kez okunan mesaj demektir.
 - Sack doluyken envantere düşenler ne sack'e ne mesaja girer, karşılaştırmayı bozmaz. Mesajsız sack değişimleri (ör. Bazaar'a sack'ten satış, mesaj gelmiyorsa) fark olarak görünür.
 

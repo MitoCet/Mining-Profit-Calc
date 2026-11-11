@@ -197,6 +197,27 @@ public final class Tracker {
 		totalCoins += coins;
 	}
 
+	/**
+	 * Adds items the API sack check found missing (their sack message never came). Goes to the
+	 * all-time total, and to the session too when {@code session} (not after it ended).
+	 */
+	public void addFix(Prices.Item item, double count, boolean session) {
+		double coins = count * item.value();
+		if (coins <= 0) return;
+		String fam = item.family();
+		String cat = Breakdown.category(fam);
+		String row = Breakdown.rowName(fam);
+		String unit = Breakdown.unit(item.id(), fam);
+		if (session) {
+			sessionBreakdown.addCount(cat, row, unit, count);
+			sessionBreakdown.addCoins(cat, row, coins);
+			sessionCoins += coins;
+		}
+		totalBreakdown.addCount(cat, row, unit, count);
+		totalBreakdown.addCoins(cat, row, coins);
+		totalCoins += coins;
+	}
+
 	private void note(String cat, String row, String unit, double count) {
 		sessionBreakdown.addCount(cat, row, unit, count);
 		totalBreakdown.addCount(cat, row, unit, count);
@@ -579,9 +600,11 @@ public final class Tracker {
 		return corpseOpen;
 	}
 
+	/** Told of every mining item in corpse loot, also while stopped (for the API sack check). */
+	public java.util.function.BiConsumer<String, Long> corpseMining;
+
 	private double corpseReward(String line, long now) {
 		corpseRead++;
-		if (!running()) return 0;
 		String name = line;
 		double count = 1;
 		Matcher last = AMOUNT_LAST.matcher(line);
@@ -595,6 +618,8 @@ public final class Tracker {
 		}
 		Prices.Item item = prices.get().byName(name);
 		if (item == null) return 0;
+		if (item.mining() && corpseMining != null) corpseMining.accept(item.id(), Math.round(count));
+		if (!running()) return 0;
 		if (item.mining()) {
 			Credit c = credits.get(item.id());
 			credits.put(item.id(), new Credit((c == null ? 0 : c.count) + count, now + CORPSE_CREDIT_MS));
