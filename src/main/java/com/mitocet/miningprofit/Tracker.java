@@ -579,9 +579,11 @@ public final class Tracker {
 		return corpseOpen;
 	}
 
+	/** Told of every mining item in corpse loot, also while stopped (for the API sack check). */
+	public java.util.function.BiConsumer<String, Long> corpseMining;
+
 	private double corpseReward(String line, long now) {
 		corpseRead++;
-		if (!running()) return 0;
 		String name = line;
 		double count = 1;
 		Matcher last = AMOUNT_LAST.matcher(line);
@@ -595,6 +597,8 @@ public final class Tracker {
 		}
 		Prices.Item item = prices.get().byName(name);
 		if (item == null) return 0;
+		if (item.mining() && corpseMining != null) corpseMining.accept(item.id(), Math.round(count));
+		if (!running()) return 0;
 		if (item.mining()) {
 			Credit c = credits.get(item.id());
 			credits.put(item.id(), new Credit((c == null ? 0 : c.count) + count, now + CORPSE_CREDIT_MS));

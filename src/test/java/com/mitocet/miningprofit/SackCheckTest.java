@@ -97,4 +97,35 @@ class SackCheckTest {
 		assertTrue(SackCheck.parseSacks(
 			"{\"success\":true,\"profiles\":[{\"selected\":true,\"members\":{\"abc\":{\"inventory\":{\"inv_contents\":{}}}}}]}", "abc").isEmpty());
 	}
+
+	@Test
+	void corpseLootWithoutSackMessageIsNotMissing() {
+		SackCheck s = started();
+		s.onSackMessage(List.of("  +500 Tungsten (Mining Sack)"), PRICES);
+		// Loot of a corpse: 20 Tungsten, its sack message never comes.
+		s.onCorpseItem("TUNGSTEN", 20);
+		SackCheck.Result r = s.compare(Map.of("TUNGSTEN", 1520L, "GLACITE", 50L), PRICES);
+		assertEquals(List.of(), r.diffs());
+	}
+
+	@Test
+	void corpseLootShownInSackMessageIsNotCountedTwice() {
+		SackCheck s = started();
+		s.onCorpseItem("TUNGSTEN", 20);
+		s.onSackMessage(List.of("  +520 Tungsten (Mining Sack)"), PRICES);
+		SackCheck.Result r = s.compare(Map.of("TUNGSTEN", 1520L, "GLACITE", 50L), PRICES);
+		assertEquals(List.of(), r.diffs());
+		assertTrue(s.corpse.isEmpty());
+	}
+
+	@Test
+	void sameDifferencesGiveSameKey() {
+		SackCheck s = started();
+		s.onSackMessage(List.of("  +500 Tungsten (Mining Sack)"), PRICES);
+		String a = s.compare(Map.of("TUNGSTEN", 2000L, "GLACITE", 50L), PRICES).key();
+		String b = s.compare(Map.of("TUNGSTEN", 2000L, "GLACITE", 50L), PRICES).key();
+		String c = s.compare(Map.of("TUNGSTEN", 2100L, "GLACITE", 50L), PRICES).key();
+		assertEquals(a, b);
+		assertFalse(a.equals(c));
+	}
 }

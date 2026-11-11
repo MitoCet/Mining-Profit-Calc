@@ -18,7 +18,8 @@ import java.util.regex.Matcher;
  *
  * At /kazanc baslat the sack counts are taken from the API (the base). From then on every sack
  * message line of a mining item is added up as it is (+ and -, whatever the earning rules say),
- * also while stopped. Later (/kazanc bitir or /kazanc kontrol) the API counts minus the base
+ * also while stopped. Mining items from corpse loot count as read too until a sack message shows
+ * them, because the loot message already counted them. Later (/kazanc bitir or /kazanc kontrol) the API counts minus the base
  * should equal that sum; a difference means a sack message was missed or read twice.
  *
  * Hypixel saves the profile only every few minutes, so the API can be behind: if nothing changed
@@ -33,6 +34,16 @@ public final class SackCheck {
 	public long baseAt;
 	/** Sum of the sack message lines since the base (item id -> amount). */
 	public Map<String, Long> read = new HashMap<>();
+	/**
+	 * Mining items from corpse loot that no sack message has shown yet (item id -> count). The
+	 * earnings already counted them from the loot message; when the sack message for them never
+	 * comes (it does not always), they are still not missing.
+	 */
+	public Map<String, Long> corpse = new HashMap<>();
+	/** Earnings of the session that /kazanc bitir ended, for /kazanc kontrol after it (null = none). */
+	public Double endedCoins;
+	/** The last result reported, so the same one is not warned about again. */
+	public String lastReport;
 
 	public boolean hasBase() {
 		return base != null;
@@ -42,6 +53,15 @@ public final class SackCheck {
 		base = new HashMap<>(counts);
 		baseAt = now;
 		read = new HashMap<>();
+		corpse = new HashMap<>();
+		endedCoins = null;
+		lastReport = null;
+	}
+
+	/** A mining item from corpse loot (it goes into the sacks; a sack message may or may not follow). */
+	public void onCorpseItem(String id, long count) {
+		if (base == null || count <= 0) return;
+		corpse.merge(id, count, Long::sum);
 	}
 
 	/** Adds one sack message (all its hover texts) to what was read. Only mining items. */
@@ -54,7 +74,15 @@ public final class SackCheck {
 				Prices.Item item = p.byName(m.group(2));
 				if (item == null || !item.mining()) continue;
 				long amount = Math.round(Tracker.number(m.group(1)));
-				if (amount != 0) read.merge(item.id(), amount, Long::sum);
+				if (amount == 0) continue;
+				read.merge(item.id(), amount, Long::sum);
+				// A sack message showing corpse items: they are in what was read now.
+				Long pending = corpse.get(item.id());
+				if (amount > 0 && pending != null) {
+					long left = pending - Math.min(pending, amount);
+					if (left > 0) corpse.put(item.id(), left);
+					else corpse.remove(item.id());
+				}
 			}
 		}
 	}
@@ -66,11 +94,20 @@ public final class SackCheck {
 		}
 	}
 
-	public record Result(boolean apiUnchanged, List<Diff> diffs, long matched) {}
+	public record Result(boolean apiUnchanged, List<Diff> diffs, long matched) {
+		/** Same text for the same differences, to see that a check found nothing new. */
+		public String key() {
+			StringBuilder b = new StringBuilder();
+			for (Diff d : diffs) b.append(d.id()).append(':').append(d.api()).append('/').append(d.read()).append(';');
+			return b.toString();
+		}
+	}
 
 	/** Compares the API counts now with the base and what was read; only mining items. */
 	public Result compare(Map<String, Long> now, Prices p) {
-		TreeSet<String> ids = new TreeSet<>(read.keySet());
+		Map<String, Long> seen = new HashMap<>(read);
+		corpse.forEach((id, n) -> seen.merge(id, n, Long::sum));
+		TreeSet<String> ids = new TreeSet<>(seen.keySet());
 		boolean unchanged = true;
 		TreeSet<String> all = new TreeSet<>(base.keySet());
 		all.addAll(now.keySet());
@@ -87,12 +124,12 @@ public final class SackCheck {
 		long matched = 0;
 		for (String id : ids) {
 			long api = now.getOrDefault(id, 0L) - base.getOrDefault(id, 0L);
-			long r = read.getOrDefault(id, 0L);
+			long r = seen.getOrDefault(id, 0L);
 			if (api == r) matched++;
 			else diffs.add(new Diff(id, api, r));
 		}
 		// Nothing changed in the API although sack messages came: Hypixel has not saved yet.
-		boolean behind = unchanged && !read.isEmpty();
+		boolean behind = unchanged && !seen.isEmpty();
 		return new Result(behind, behind ? List.of() : diffs, matched);
 	}
 
