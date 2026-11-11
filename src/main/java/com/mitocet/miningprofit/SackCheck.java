@@ -121,18 +121,30 @@ public final class SackCheck {
 		JsonObject members = chosen.getAsJsonObject("members");
 		JsonObject member = members == null ? null : members.getAsJsonObject(key);
 		if (member == null) throw new IllegalStateException("Profilde oyuncu bulunamadı.");
+		// v2 puts sack counts at members[uuid].inventory.sacks_counts (older answers: members[uuid].sacks_counts),
+		// the same place the site reads them from.
 		JsonObject sacks = null;
-		JsonObject inv = member.getAsJsonObject("inventory");
-		if (inv != null && inv.has("sack_counts")) sacks = inv.getAsJsonObject("sack_counts");
-		if (sacks == null && member.has("sacks_counts")) sacks = member.getAsJsonObject("sacks_counts");
+		JsonObject inv = obj(member, "inventory");
+		if (inv != null) sacks = obj(inv, "sacks_counts");
+		if (sacks == null) sacks = obj(member, "sacks_counts");
 		if (sacks == null) {
-			throw new IllegalStateException("API sack bilgisini vermedi. Oyunda SkyBlock Menu → Settings → API Settings'te Inventory/Sacks API açık olmalı.");
+			if (inv == null) {
+				String profile = chosen.has("cute_name") ? chosen.get("cute_name").getAsString() + " profilinin" : "Profilin";
+				throw new IllegalStateException("API " + profile + " envanterini vermedi. Oyunda SkyBlock Menu → Settings → API Settings'te Inventory API açık olmalı (yeni açtıysan birkaç dakika bekle).");
+			}
+			// Inventory API is on but no sack counts at all: the sacks are empty.
+			return new HashMap<>();
 		}
 		Map<String, Long> out = new HashMap<>();
 		for (Map.Entry<String, JsonElement> e : sacks.entrySet()) {
 			if (e.getValue().isJsonPrimitive()) out.put(e.getKey(), e.getValue().getAsLong());
 		}
 		return out;
+	}
+
+	private static JsonObject obj(JsonObject o, String name) {
+		JsonElement e = o.get(name);
+		return e != null && e.isJsonObject() ? e.getAsJsonObject() : null;
 	}
 
 	/** Hypixel's error text in Turkish. */
