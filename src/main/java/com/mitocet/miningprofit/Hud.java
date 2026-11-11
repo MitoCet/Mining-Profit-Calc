@@ -26,6 +26,7 @@ public final class Hud {
 	private static final int GOOD = 0xFF6BE36B;
 	private static final int MUTED = 0xFFAAAAAA;
 	private static final int WARN = 0xFFFFAA33;
+	private static final int BAD = 0xFFFF6B6B;
 	private static final int HEAD = 0xFFFFD24A;
 	/** The collector runs every 15 minutes; values older than this are called out. */
 	private static final long STALE_MS = 60 * 60_000;
@@ -70,9 +71,9 @@ public final class Hud {
 		long now = System.currentTimeMillis();
 
 		boolean session = cfg.sessionTab;
-		double coins = session ? t.sessionCoins : t.totalCoins;
-		long ms = session ? t.sessionMs(now) : t.totalMs(now);
 		Breakdown bd = session ? t.sessionBreakdown : t.totalBreakdown;
+		double coins = Tracker.net(session ? t.sessionCoins : t.totalCoins, bd, cfg.keyCost);
+		long ms = session ? t.sessionMs(now) : t.totalMs(now);
 		String tabA = "Session";
 		String tabB = "Toplam";
 		String toggle = cfg.big ? "[-]" : "[+]";
@@ -84,17 +85,22 @@ public final class Hud {
 			if (cats.isEmpty()) lines.add(new Line("Henüz kazanç yok", MUTED, null));
 			for (String cat : cats) {
 				boolean open = cfg.open.contains(cat);
-				lines.add(new Line((open ? "▼ " : "▶ ") + cat + " · " + Format.coins(bd.total(cat)), HEAD, cat));
+				// With key costs on, Corpse Loot shows what is left after the keys.
+				boolean keys = cfg.keyCost && cat.equals(Breakdown.CORPSE) && bd.keyText() != null;
+				double total = bd.total(cat) - (keys ? bd.keyCoins : 0);
+				lines.add(new Line((open ? "▼ " : "▶ ") + cat + " · " + Format.coins(total), HEAD, cat));
 				if (open) {
 					for (Map.Entry<String, Breakdown.Row> r : bd.rows(cat)) {
 						lines.add(new Line("  " + Breakdown.rowText(r.getKey(), r.getValue()), TEXT, null));
 					}
+					if (keys) lines.add(new Line("  " + bd.keyText(), BAD, null));
 				}
 			}
 		}
 		lines.add(new Line("Kazanç: " + Format.coins(coins), GOOD, null));
 		lines.add(new Line("Saatlik: " + Format.coins(Tracker.perHour(coins, ms)) + "/sa", TEXT, null));
 		if (!mod.prices().loaded()) lines.add(new Line("Fiyatlar yükleniyor…", MUTED, null));
+		else if (t.idle(now)) lines.add(new Line("⏸ Boşta, süre durdu · " + Format.time(ms), MUTED, null));
 		else lines.add(new Line((t.running() ? "● " : "■ Durdu · ") + Format.time(ms), t.running() ? TEXT : MUTED, null));
 
 		// Saved values from an earlier game, or values the collector hasn't renewed for a while.

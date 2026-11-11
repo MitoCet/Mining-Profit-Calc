@@ -90,6 +90,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (config.sessionBreakdown != null) tracker.sessionBreakdown = config.sessionBreakdown;
 		if (config.totalBreakdown != null) tracker.totalBreakdown = config.totalBreakdown;
 		if (config.open == null) config.open = new java.util.HashSet<>();
+		tracker.idleMs = Math.max(0, config.idleSeconds) * 1000L;
 
 		ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor((r) -> {
 			Thread t = new Thread(r, "miningprofit-prices");
@@ -114,6 +115,16 @@ public final class MiningProfitClient implements ClientModInitializer {
 		hud = new Hud(this);
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "box"), hud::render);
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+			// While a Sack menu is open (and just after), sack changes are not mining.
+			if (Tracker.isSackMenu(screen.getTitle().getString())) {
+				tracker.onSackMenu(true, System.currentTimeMillis());
+				if (config.debugLog) debug.simple("sackmenu-open", System.currentTimeMillis());
+				ScreenEvents.remove(screen).register((s) -> {
+					tracker.onSackMenu(false, System.currentTimeMillis());
+					if (config.debugLog) debug.simple("sackmenu-close", System.currentTimeMillis());
+				});
+				return;
+			}
 			if (!(screen instanceof ChatScreen)) return;
 			hud.chatOpen = true;
 			ScreenMouseEvents.allowMouseClick(screen).register((s, e) -> !hud.click(e.x(), e.y(), e.button()));
@@ -159,7 +170,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				.then(ClientCommands.literal("bitir").executes((c) -> {
 					long now = System.currentTimeMillis();
 					long ms = tracker.sessionMs(now);
-					double coins = tracker.sessionCoins;
+					double coins = Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost);
 					tracker.end(now);
 					logControl("end", now);
 					save();
@@ -223,6 +234,25 @@ public final class MiningProfitClient implements ClientModInitializer {
 					for (String w : tracker.warnings) say(c, "⚠ " + w);
 					return Command.SINGLE_SUCCESS;
 				}))
+				.then(ClientCommands.literal("anahtar").executes((c) -> {
+					config.keyCost = !config.keyCost;
+					save();
+					return say(c, config.keyCost
+						? "Corpse anahtarları kazançtan düşülüyor (büyük kutuda Corpse Loot altında). Kapatmak için /kazanc anahtar."
+						: "Corpse anahtarları kazançtan düşülmüyor.");
+				}))
+				.then(ClientCommands.literal("bosta")
+					.executes((c) -> say(c, config.idleSeconds > 0
+						? config.idleSeconds + " sn kazanç gelmezse süre durur, ilk kazançta devam eder. Değiştirmek için /kazanc bosta <sn> (0 = hiç durmasın)."
+						: "Boşta süre durmuyor. Açmak için /kazanc bosta <sn> (ör. 90)."))
+					.then(ClientCommands.argument("sn", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 3600)).executes((c) -> {
+						config.idleSeconds = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(c, "sn");
+						tracker.idleMs = config.idleSeconds * 1000L;
+						save();
+						return say(c, config.idleSeconds > 0
+							? config.idleSeconds + " sn kazanç gelmezse süre durur."
+							: "Boşta süre durmayacak.");
+					})))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
 					refreshPricesAsync();
 					return say(c, "Fiyatlar siteden yeniden alınıyor.");
@@ -247,8 +277,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 			boolean corpse = tracker.corpseOpen();
 			long warned = tracker.warningCount;
 			double coins = tracker.onChatLine(line, now);
+			String low = Tracker.strip(line).toLowerCase(java.util.Locale.ROOT);
 			boolean related = corpse || tracker.corpseOpen() || coins > 0
-				|| Tracker.strip(line).toLowerCase(java.util.Locale.ROOT).contains("stash");
+				|| low.contains("stash") || low.contains("supercrafted") || low.contains("resourceful");
 			if (related && (config.debugLog || tracker.warningCount != warned)) debug.chat(line, coins, now);
 			logWarnings(warned, now);
 		}
@@ -309,11 +340,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 		long now = System.currentTimeMillis();
 		long sms = tracker.sessionMs(now);
 		long tms = tracker.totalMs(now);
-		say(c, "Session: " + Format.coins(tracker.sessionCoins) + " (" + Format.time(sms) + ", "
-			+ Format.coins(Tracker.perHour(tracker.sessionCoins, sms)) + "/sa)"
-			+ (tracker.running() ? "" : " · durdu"));
-		return say(c, "Toplam: " + Format.coins(tracker.totalCoins) + " (" + Format.time(tms) + ", "
-			+ Format.coins(Tracker.perHour(tracker.totalCoins, tms)) + "/sa)");
+		double s = Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost);
+		double t = Tracker.net(tracker.totalCoins, tracker.totalBreakdown, config.keyCost);
+		say(c, "Session: " + Format.coins(s) + " (" + Format.time(sms) + ", "
+			+ Format.coins(Tracker.perHour(s, sms)) + "/sa)"
+			+ (tracker.running() ? (tracker.idle(now) ? " · boşta" : "") : " · durdu"));
+		return say(c, "Toplam: " + Format.coins(t) + " (" + Format.time(tms) + ", "
+			+ Format.coins(Tracker.perHour(t, tms)) + "/sa)"
+			+ (config.keyCost ? " · anahtarlar düşüldü" : ""));
 	}
 
 	private static int say(CommandContext<FabricClientCommandSource> c, String text) {

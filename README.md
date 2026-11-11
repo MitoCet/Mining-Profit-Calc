@@ -24,6 +24,8 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır |
 | `/kazanc kayit` | Kaydı açar / kapatır: mod okuduğu mesajları dosyaya yazar (aşağıya bak) |
 | `/kazanc uyari` | Bu session'daki uyarıları sohbete yazar |
+| `/kazanc anahtar` | Corpse anahtarlarını kazançtan düşmeyi açar / kapatır (varsayılan kapalı) |
+| `/kazanc bosta [sn]` | Kaç saniye kazanç gelmezse sürenin duracağını gösterir / ayarlar (varsayılan 90, 0 = hiç durmasın) |
 
 Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
 
@@ -37,7 +39,10 @@ Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril,
 - **Craftlamak kazancı değiştirmez:** sack'teki itemleri `/craft` ile craftlamak (ör. Glacite → Enchanted Glacite) ya da envanterde craftlayıp sack'e koymak kazanç eklemez, kazılanlardan da düşmez.
 - **Frozen corpse loot'u**: ödül listesindeki fiyatı olan her item, envantere düşenler dahil. Corpse'tan gelip sack'e giren itemler iki kez sayılmaz.
 - Compact'tan düşen Enchanted itemler ve Pristine'den düşen Flawed gemler sack'e girince kendi değerleriyle sayılır (sack doluyken envantere düşenler sayılmaz).
-- Harcamalar (anahtarlar dahil) düşülmez.
+- **Sack menüsünden koyulan/alınanlar sayılmaz:** bir Sack menüsü açıkken ve kapandıktan 10 saniye sonrasına kadar gelen sack değişimleri kazanç değildir (stash'ten gelenler yine sayılır).
+- **`/craft` ile yapılanlar sayılmaz:** "You Supercrafted ..." mesajından sonraki 30 saniyede gelen ilk sack mesajında o item kazanç sayılmaz.
+- **Boşta süre durur:** 90 saniye (`/kazanc bosta` ile değişir) hiç kazanç gelmezse süre durur, kutuda "⏸ Boşta, süre durdu" yazar; ilk kazançta kendiliğinden devam eder. Saatlik sadece aktif süreye göre hesaplanır.
+- **Anahtarlar:** varsayılan olarak düşülmez. `/kazanc anahtar` açıkken kullanılan Tungsten/Umber/Skeleton Key'ler (kullanıldıkları andaki değerle) kazançtan düşülür; büyük kutuda Corpse Loot altında "Anahtar: ..." satırı çıkar. Resourceful perk'i anahtarı kurtarırsa düşülmez. Kapatınca toplam yine düşülmemiş haline döner. Diğer harcamalar düşülmez.
 
 ## Değerler nereden geliyor
 
@@ -54,6 +59,10 @@ Mod bir mesajı okuyamazsa ya da bir şey yanlış görünürse sessizce saymaz;
 - Corpse loot başlığı geldi ama ödül satırı okunamadı.
 
 Uyarı veren mesaj ham haliyle (hover dahil) `config/mining-profit-calc-debug.log` dosyasına yazılır. `/kazanc kayit` açıkken her sack mesajı, corpse satırı, envanterdeki mining itemleri ve modun her biri için saydığı coin de yazılır (dosya 5 MB'ı geçince `.old` olur). Bu dosya, sayım yanlışsa nedenini görmek ve gerçek mesajlarla test yazmak için kullanılır: `src/test/resources/replay/` klasörüne konan kayıtlar her derlemede baştan oynatılır (bkz. oradaki README).
+
+## Teşekkür
+
+Mesaj biçimleri (Supercraft, corpse türü, Resourceful) ve sack menüsü / boşta durma kuralları [SkyHanni](https://github.com/hannibal002/SkyHanni)'den (LGPL-2.1) alındı.
 
 ## Derleme
 
