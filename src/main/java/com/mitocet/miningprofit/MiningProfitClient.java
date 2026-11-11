@@ -17,8 +17,11 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -288,6 +291,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 					check(c.getSource(), Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost));
 					return Command.SINGLE_SUCCESS;
 				}))
+				.then(ClientCommands.literal("help").executes(this::help))
+				.then(ClientCommands.literal("yardim").executes(this::help))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
 					refreshPricesAsync();
 					return say(c, "Fiyatlar siteden yeniden alınıyor.");
@@ -381,9 +386,33 @@ public final class MiningProfitClient implements ClientModInitializer {
 		say(c, "Session: " + Format.coins(s) + " (" + Format.time(sms) + ", "
 			+ Format.coins(Tracker.perHour(s, sms)) + "/sa)"
 			+ (tracker.running() ? (tracker.idle(now) ? " · boşta" : "") : " · durdu"));
-		return say(c, "Toplam: " + Format.coins(t) + " (" + Format.time(tms) + ", "
+		say(c, "Toplam: " + Format.coins(t) + " (" + Format.time(tms) + ", "
 			+ Format.coins(Tracker.perHour(t, tms)) + "/sa)"
 			+ (config.keyCost ? " · anahtarlar düşüldü" : ""));
+		return say(c, "§7Tüm komutlar: /kazanc help");
+	}
+
+	/** /kazanc help: every command with a short line; hover for details, click to type it. */
+	private int help(CommandContext<FabricClientCommandSource> c) {
+		FabricClientCommandSource src = c.getSource();
+		src.sendFeedback(Component.literal("§6§l[Kazanç] Komutlar"));
+		src.sendFeedback(Component.literal("§7" + Help.INTRO));
+		for (Help.Group group : Help.GROUPS) {
+			src.sendFeedback(Component.literal("§e" + group.title() + ":"));
+			for (Help.Entry e : group.entries()) {
+				// Commands that take an argument are typed with a trailing space, the rest in full.
+				String typed = "/kazanc" + (e.command().isEmpty() ? "" : " " + e.command())
+					+ (e.usage().contains("<") || e.usage().contains("[") ? " " : "");
+				Component hover = Component.literal("§b" + e.usage() + "\n§r" + e.details() + "\n§7Tıkla: sohbete yaz");
+				MutableComponent line = Component.literal(" §b" + e.usage() + " §7- §r" + e.shortText())
+					.setStyle(Style.EMPTY
+						.withHoverEvent(new HoverEvent.ShowText(hover))
+						.withClickEvent(new ClickEvent.SuggestCommand(typed)));
+				src.sendFeedback(line);
+			}
+		}
+		for (String note : Help.NOTES) src.sendFeedback(Component.literal("§7• " + note));
+		return Command.SINGLE_SUCCESS;
 	}
 
 	private static int say(CommandContext<FabricClientCommandSource> c, String text) {

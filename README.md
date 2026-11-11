@@ -12,6 +12,7 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 
 | Komut | Ne yapar |
 | --- | --- |
+| `/kazanc help`, `/kazanc yardim` | Bütün komutları Türkçe açıklamalarıyla listeler; komutun üstüne gelince ayrıntısı çıkar, tıklayınca komut sohbete yazılır |
 | `/kazanc baslat` | Yeni session başlatır (session sıfırlanır) |
 | `/kazanc dur` | Durdurur ve özeti sohbete yazar |
 | `/kazanc bitir` | Session'ı bitirir: durdurur, özeti sohbete yazar ve session'ı sıfırlar (Toplam'a dokunmaz) |
