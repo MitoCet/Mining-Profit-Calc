@@ -25,6 +25,8 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc kayit` | Kaydı açar / kapatır: mod okuduğu mesajları dosyaya yazar (aşağıya bak) |
 | `/kazanc uyari` | Bu session'daki uyarıları sohbete yazar |
 | `/kazanc anahtar` | Corpse anahtarlarını kazançtan düşmeyi açar / kapatır (varsayılan kapalı) |
+| `/kazanc api <anahtar>` | Hypixel API anahtarını kaydeder (sadece bu bilgisayarda, `config/mining-profit-calc.json`); `/kazanc api sil` siler |
+| `/kazanc kontrol` | Sack sayılarını Hypixel API ile karşılaştırır (aşağıya bak) |
 | `/kazanc bosta [sn]` | Kaç saniye kazanç gelmezse sürenin duracağını gösterir / ayarlar (varsayılan 90, 0 = hiç durmasın) |
 
 Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
@@ -59,6 +61,18 @@ Mod bir mesajı okuyamazsa ya da bir şey yanlış görünürse sessizce saymaz;
 - Corpse loot başlığı geldi ama ödül satırı okunamadı.
 
 Uyarı veren mesaj ham haliyle (hover dahil) `config/mining-profit-calc-debug.log` dosyasına yazılır. `/kazanc kayit` açıkken her sack mesajı, corpse satırı, envanterdeki mining itemleri ve modun her biri için saydığı coin de yazılır (dosya 5 MB'ı geçince `.old` olur). Bu dosya, sayım yanlışsa nedenini görmek ve gerçek mesajlarla test yazmak için kullanılır: `src/test/resources/replay/` klasörüne konan kayıtlar her derlemede baştan oynatılır (bkz. oradaki README).
+
+## API ile sack kontrolü
+
+Modun sack mesajlarını doğru okuyup okumadığını Hypixel API'deki gerçek sack sayılarıyla karşılaştırır. Kullanmak için [developer.hypixel.net](https://developer.hypixel.net/) anahtarını `/kazanc api <anahtar>` ile gir (Development Key 3 günde biter; bitince mod "anahtar geçersiz" der). Anahtar sadece bu bilgisayardaki ayar dosyasında durur. Oyunda SkyBlock API ayarlarında Inventory/Sacks API açık olmalı.
+
+- `/kazanc baslat`: API'den başlangıç sack sayıları alınır.
+- O andan sonra mining itemlerinin her sack mesajı satırı (+ ve −, kazanç kurallarından bağımsız) toplanır, session dursa bile.
+- `/kazanc bitir` ya da `/kazanc kontrol`: API'deki değişim (şimdi − başlangıç) modun okuduğuyla item item karşılaştırılır. Tutmayan itemler sohbete yazılır (`API +1.000, mod +500, fark +500`) ve kutuda ⚠ uyarısı çıkar. Kazanç kendiliğinden düzeltilmez.
+- Hypixel sack verisini birkaç dakika geç kaydeder. API hiç değişmemişse "henüz güncellemedi" der; 2-3 dakika sonra `/kazanc kontrol` ile tekrar bakılır. Başlangıç sayısı da eski olabileceği için tek seferlik bir fark gecikmeden kaynaklanabilir; tekrar bakınca da kalan fark, kaçan ya da iki kez okunan mesaj demektir.
+- Sack doluyken envantere düşenler ne sack'e ne mesaja girer, karşılaştırmayı bozmaz. Mesajsız sack değişimleri (ör. Bazaar'a sack'ten satış, mesaj gelmiyorsa) fark olarak görünür.
+
+SkyHanni API anahtarı kullanmıyor (sack sayısını sadece mesajlardan okuyor), bu kontrol bu moda özgü. İstek oyun sunucusuna değil api.hypixel.net'e gider ve sadece bu komutlarda yapılır.
 
 ## Teşekkür
 

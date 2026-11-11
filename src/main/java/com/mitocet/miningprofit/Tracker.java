@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  */
 public final class Tracker {
 	public static final long CORPSE_CREDIT_MS = 90_000;
-	private static final Pattern SACK_LINE = Pattern.compile("^\\s*([+-][\\d,.]+)\\s+(.+?)\\s*\\(([^)]*)\\)\\s*$");
+	static final Pattern SACK_LINE = Pattern.compile("^\\s*([+-][\\d,.]+)\\s+(.+?)\\s*\\(([^)]*)\\)\\s*$");
 	private static final Pattern STASH_PICKUP = Pattern.compile("(?i)picked up .*stash");
 	private static final Pattern CORPSE_HEADER = Pattern.compile("CORPSE LOOT!");
 	private static final Pattern AMOUNT_FIRST = Pattern.compile("^\\+?([\\d,.]+)x?\\s+(.+)$");
@@ -76,7 +76,7 @@ public final class Tracker {
 	private String lastSackKey;
 	private long lastSackAt = -1;
 
-	private void warn(String text) {
+	void warn(String text) {
 		warningCount++;
 		if (warnings.size() >= MAX_WARNINGS) warnings.remove(0);
 		warnings.add(text);

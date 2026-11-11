@@ -91,6 +91,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (config.totalBreakdown != null) tracker.totalBreakdown = config.totalBreakdown;
 		if (config.open == null) config.open = new java.util.HashSet<>();
 		tracker.idleMs = Math.max(0, config.idleSeconds) * 1000L;
+		if (config.sackCheck == null) config.sackCheck = new SackCheck();
+		if (config.sackCheck.read == null) config.sackCheck.read = new java.util.HashMap<>();
 
 		ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor((r) -> {
 			Thread t = new Thread(r, "miningprofit-prices");
@@ -157,7 +159,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 					logControl("start", now);
 					save();
 					refreshPricesAsync();
-					return say(c, "Yeni session başladı. Sack ve corpse kazançları sayılıyor.");
+					say(c, "Yeni session başladı. Sack ve corpse kazançları sayılıyor.");
+					if (hasKey()) takeBase(c.getSource());
+					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("dur").executes((c) -> {
 					long now = System.currentTimeMillis();
@@ -174,9 +178,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 					tracker.end(now);
 					logControl("end", now);
 					save();
-					return say(c, "Session bitti: " + Format.coins(coins) + " (" + Format.time(ms) + ", "
+					say(c, "Session bitti: " + Format.coins(coins) + " (" + Format.time(ms) + ", "
 						+ Format.coins(Tracker.perHour(coins, ms)) + "/sa). Session sıfırlandı, Toplam'a eklendi."
 						+ " Yeni session için /kazanc baslat.");
+					if (hasKey() && config.sackCheck.hasBase()) check(c.getSource());
+					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("devam").executes((c) -> {
 					long now = System.currentTimeMillis();
@@ -253,6 +259,35 @@ public final class MiningProfitClient implements ClientModInitializer {
 							? config.idleSeconds + " sn kazanç gelmezse süre durur."
 							: "Boşta süre durmayacak.");
 					})))
+				.then(ClientCommands.literal("api")
+					.executes((c) -> say(c, hasKey()
+						? "API anahtarı kayıtlı (" + mask(config.apiKey) + "). Değiştirmek için /kazanc api <anahtar>, silmek için /kazanc api sil."
+						: "API anahtarı yok. /kazanc api <anahtar> ile gir (developer.hypixel.net). Sadece bu bilgisayarda saklanır."))
+					.then(ClientCommands.argument("anahtar", com.mojang.brigadier.arguments.StringArgumentType.word()).executes((c) -> {
+						String key = com.mojang.brigadier.arguments.StringArgumentType.getString(c, "anahtar").trim();
+						if (key.equalsIgnoreCase("sil")) {
+							config.apiKey = null;
+							save();
+							return say(c, "API anahtarı silindi.");
+						}
+						config.apiKey = key;
+						save();
+						say(c, "API anahtarı kaydedildi, deneniyor...");
+						// Try it now; with no base yet, the answer becomes the base.
+						if (!config.sackCheck.hasBase()) takeBase(c.getSource());
+						else fetchSacks(c.getSource(), (counts) -> say(c.getSource(), "Anahtar çalışıyor."));
+						return Command.SINGLE_SUCCESS;
+					})))
+				.then(ClientCommands.literal("kontrol").executes((c) -> {
+					if (!hasKey()) return say(c, "Önce API anahtarını gir: /kazanc api <anahtar>");
+					if (!config.sackCheck.hasBase()) {
+						say(c, "Karşılaştırma için başlangıç sayısı yoktu, şimdi alınıyor. Biraz kazdıktan sonra tekrar /kazanc kontrol yaz.");
+						takeBase(c.getSource());
+						return Command.SINGLE_SUCCESS;
+					}
+					check(c.getSource());
+					return Command.SINGLE_SUCCESS;
+				}))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
 					refreshPricesAsync();
 					return say(c, "Fiyatlar siteden yeniden alınıyor.");
@@ -267,6 +302,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			List<String> hovers = new ArrayList<>();
 			collectHovers(message, hovers);
 			long warned = tracker.warningCount;
+			config.sackCheck.onSackMessage(hovers, prices);
 			double coins = tracker.onSackMessage(hovers, now);
 			// With the log on everything goes in; with it off only messages that gave a warning.
 			if (config.debugLog || tracker.warningCount != warned) debug.sack(hovers, coins, now);
@@ -353,6 +389,103 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private static int say(CommandContext<FabricClientCommandSource> c, String text) {
 		c.getSource().sendFeedback(Component.literal("§6[Kazanç] §r" + text));
 		return Command.SINGLE_SUCCESS;
+	}
+
+	// ---------- sack check against the Hypixel API ----------
+	private boolean hasKey() {
+		return config.apiKey != null && !config.apiKey.isBlank();
+	}
+
+	private static String mask(String key) {
+		return key.length() <= 4 ? "****" : "****" + key.substring(key.length() - 4);
+	}
+
+	private static void say(FabricClientCommandSource src, String text) {
+		src.sendFeedback(Component.literal("§6[Kazanç] §r" + text));
+	}
+
+	/** Takes the API's sack counts as the new base of the check. */
+	private void takeBase(FabricClientCommandSource src) {
+		fetchSacks(src, (counts) -> {
+			config.sackCheck.setBase(counts, System.currentTimeMillis());
+			save();
+			say(src, "Sack sayıları API'den alındı; /kazanc bitir'de (ya da /kazanc kontrol ile) modun okuduğuyla karşılaştırılacak.");
+		});
+	}
+
+	/** Compares the API's sack counts now with the base and what the mod read since. */
+	private void check(FabricClientCommandSource src) {
+		say(src, "Sack sayıları API'den karşılaştırılıyor...");
+		fetchSacks(src, (counts) -> {
+			SackCheck.Result r = config.sackCheck.compare(counts, prices);
+			if (r.apiUnchanged()) {
+				say(src, "Hypixel sack verisini henüz güncellemedi (birkaç dakika gecikebiliyor). 2-3 dk sonra /kazanc kontrol yaz.");
+				return;
+			}
+			if (r.diffs().isEmpty()) {
+				say(src, "§aSack sayıları tutuyor§r: API ile modun okuduğu aynı (" + r.matched() + " item).");
+				return;
+			}
+			say(src, "§eFark var§r (" + r.matched() + " item tutuyor). API'deki değişim / modun okuduğu:");
+			int shown = 0;
+			for (SackCheck.Diff d : r.diffs()) {
+				if (++shown > 12) {
+					say(src, "... ve " + (r.diffs().size() - 12) + " item daha.");
+					break;
+				}
+				Prices.Item item = prices.byId(d.id());
+				String name = item != null && item.name() != null ? item.name() : d.id();
+				say(src, "⚠ " + name + ": API " + signed(d.api()) + ", mod " + signed(d.read())
+					+ " (fark " + signed(d.missing()) + ")");
+			}
+			say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Kalıcıysa mesaj kaçmış ya da iki kez okunmuştur (/kazanc kayit ile kaydı açık tut).");
+			long now = System.currentTimeMillis();
+			long before = tracker.warningCount;
+			tracker.warn("API sack sayısıyla " + r.diffs().size() + " itemde fark (/kazanc kontrol)");
+			logWarnings(before, now);
+		});
+	}
+
+	private static String signed(long n) {
+		return (n > 0 ? "+" : "") + String.format(java.util.Locale.ROOT, "%,d", n).replace(',', '.');
+	}
+
+	/** Gets the selected profile's sack counts off the game thread; answers on the game thread. */
+	private void fetchSacks(FabricClientCommandSource src, java.util.function.Consumer<Map<String, Long>> then) {
+		Minecraft mc = Minecraft.getInstance();
+		LocalPlayer player = mc.player;
+		if (player == null) {
+			say(src, "Oyunda değilsin, API'ye bakılamadı.");
+			return;
+		}
+		String uuid = player.getUUID().toString().replace("-", "");
+		String key = config.apiKey.trim();
+		Thread t = new Thread(() -> {
+			Map<String, Long> counts;
+			String error;
+			try {
+				HttpRequest req = HttpRequest.newBuilder(URI.create(SackCheck.URL + uuid))
+					.header("API-Key", key).timeout(Duration.ofSeconds(30)).GET().build();
+				HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+				counts = SackCheck.parseSacks(res.body(), uuid);
+				error = null;
+			} catch (IllegalStateException e) {
+				counts = null;
+				error = e.getMessage();
+			} catch (Exception e) {
+				LOG.warn("Hypixel API failed: {}", e.toString());
+				counts = null;
+				error = "Hypixel API'ye ulaşılamadı (" + e.getClass().getSimpleName() + ").";
+			}
+			Map<String, Long> got = counts;
+			String err = error;
+			mc.execute(() -> {
+				if (got != null) then.accept(got);
+				else say(src, "§c" + err);
+			});
+		}, "miningprofit-hypixel");
+		t.setDaemon(true);
+		t.start();
 	}
 
 	private void refreshPricesAsync() {
