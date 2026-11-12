@@ -43,6 +43,8 @@ public final class Config {
 	 * API is checked ~3 min after a server change (/kazanc duzelt otomatik | elle).
 	 */
 	public boolean autoFix;
+	/** On the first join of a game, say if a newer jar is on GitHub (/kazanc update bildirim). */
+	public boolean updateNotify = true;
 	public Breakdown sessionBreakdown;
 	public Breakdown totalBreakdown;
 

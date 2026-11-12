@@ -62,6 +62,8 @@ public final class Help {
 				"Kutuda '⚠ Emin değilim' yazıyorsa nedenini söyler: okunamayan ya da iki kez gelen sack mesajı, kısa kesilmiş liste ('+N other items'; gizli kısım az önceki corpse loot'uysa uyarı çıkmaz), tanınmayan item gibi."),
 			new Entry("kayit", "/kazanc kayit", "Hata kaydı (aç/kapa)",
 				"Açıkken okunan sack mesajları, corpse satırları ve sayılan coinler config/mining-profit-calc-debug.log dosyasına yazılır. Oyun her açılışta yeni dosya başlar; bir önceki oyunun kaydı .old dosyasında kalır. Sayım yanlışsa bu dosyayı gönder."),
+			new Entry("update", "/kazanc update", "Modu en yeni sürüme güncelle",
+				"GitHub Releases'taki en yeni jar'ı indirir. Oyun açıkken eski jar kullanımda olduğu için hemen değişmez: oyunu kapatınca eski jar silinir, yenisi mods klasörüne konur, tekrar açınca yeni sürüm çalışır. Oyun açılınca yeni sürüm varsa sohbette haber verir; /kazanc update bildirim bu haberi açar/kapatır."),
 			new Entry("help", "/kazanc help", "Bu liste",
 				"/kazanc yardim da aynı listeyi gösterir."))));
 
