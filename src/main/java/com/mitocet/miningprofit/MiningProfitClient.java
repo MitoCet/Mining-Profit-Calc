@@ -733,7 +733,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 
 	/** Chat line outside a command (e.g. on joining a server). */
 	private static void chat(Component c) {
-		Minecraft.getInstance().gui.getChat().addMessage(c);
+		// Fabric makes the connection's suggestion provider the client command source (as in its own test mod).
+		var connection = Minecraft.getInstance().getConnection();
+		if (connection != null) ((FabricClientCommandSource) (Object) connection.getSuggestionsProvider()).sendFeedback(c);
 	}
 
 	private static Component clickable(String text, String command) {
