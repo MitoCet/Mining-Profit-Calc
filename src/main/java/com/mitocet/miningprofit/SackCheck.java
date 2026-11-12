@@ -47,16 +47,52 @@ public final class SackCheck {
 	/** Items the last check found missing (item id -> count), for /kazanc duzelt. */
 	public Map<String, Long> missing = new HashMap<>();
 
+	/** The missing items belong to a session that has ended: /kazanc duzelt adds them only to Toplam. */
+	public boolean missingEnded;
+	/**
+	 * The game was closed while a session ran: that session was ended and the base and what was
+	 * read stay until the next game checks them against the API (then the new session gets a fresh
+	 * base). Until then the sack messages of the new session are added to the same read.
+	 */
+	public boolean previousPending;
+	/** The missing items are from before the base (the previous game's session, after rebase). */
+	public boolean missingBeforeBase;
+
 	/** Missing items to add now: positive differences only (earnings never go down). */
 	public void setMissing(List<Diff> diffs) {
+		setMissing(diffs, false);
+	}
+
+	public void setMissing(List<Diff> diffs, boolean ended) {
 		missing = new HashMap<>();
+		missingEnded = ended;
+		missingBeforeBase = false;
 		for (Diff d : diffs) if (d.missing() > 0) missing.put(d.id(), d.missing());
+	}
+
+	/**
+	 * After the previous game's session was checked: the API counts now become the base of the
+	 * new session. What the check found missing stays for /kazanc duzelt (it belongs to the ended
+	 * session).
+	 */
+	public void rebase(Map<String, Long> counts, long now) {
+		Map<String, Long> keepMissing = missing;
+		boolean keepEnded = missingEnded;
+		Double keepCoins = endedCoins;
+		String keepReport = lastReport;
+		setBase(counts, now);
+		missing = keepMissing == null ? new HashMap<>() : keepMissing;
+		missingEnded = keepEnded;
+		missingBeforeBase = true;
+		endedCoins = keepCoins;
+		lastReport = keepReport;
 	}
 
 	/** Takes the missing items to add; they count as read from now on, so they are added once. */
 	public Map<String, Long> takeMissing() {
 		Map<String, Long> out = missing == null ? Map.of() : missing;
-		out.forEach((id, n) -> read.merge(id, n, Long::sum));
+		// Missing items of the previous game are already in the new base: not read again.
+		if (!missingBeforeBase) out.forEach((id, n) -> read.merge(id, n, Long::sum));
 		missing = new HashMap<>();
 		lastReport = null;
 		return out;
@@ -72,6 +108,9 @@ public final class SackCheck {
 		read = new HashMap<>();
 		corpse = new HashMap<>();
 		missing = new HashMap<>();
+		missingEnded = false;
+		missingBeforeBase = false;
+		previousPending = false;
 		endedCoins = null;
 		lastReport = null;
 	}

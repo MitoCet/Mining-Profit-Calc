@@ -45,8 +45,22 @@ public final class Config {
 	public boolean autoFix;
 	/** On the first join of a game, say if a newer jar is on GitHub (/kazanc update bildirim). */
 	public boolean updateNotify = true;
+	/**
+	 * The session the game ended when it was closed (or found unfinished after a crash), to tell
+	 * about it and start a new session on the next join. null = nothing to tell.
+	 */
+	public Previous previous;
 	public Breakdown sessionBreakdown;
 	public Breakdown totalBreakdown;
+
+	/** A session ended because the game was closed. */
+	public static final class Previous {
+		public double coins;
+		public long ms;
+		public long endedAt;
+		/** Closed by a crash: found unfinished when the game started again. */
+		public boolean crashed;
+	}
 
 	public static Config load(Path file) {
 		try {
