@@ -88,7 +88,7 @@ Mesaj biçimleri (Supercraft, corpse türü, Resourceful) ve sack menüsü / bo�
 
 ## Derleme
 
-GitHub Actions her push'ta derler; `main` dalındaki her derleme Releases'a eklenir. Yerelde: `./gradlew build` (Java 25).
+GitHub Actions her push'ta derler; `main` dalındaki her derleme Releases'a eklenir. Main derlemeleri sıraya girer (aynı anda çalışmaz) ve her zaman `main`'in en son halini derler; iki PR saniyeler arayla merge edilse de en yeni release ikisini de içerir, aynı commit iki kez release olmaz. Yerelde: `./gradlew build` (Java 25).
 
 ## Bilinen sınırlar
 
