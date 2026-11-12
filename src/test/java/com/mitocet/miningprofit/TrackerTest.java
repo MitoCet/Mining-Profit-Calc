@@ -304,7 +304,49 @@ class TrackerTest {
 	void unknownMiningItemAndCutListWarn() {
 		Tracker t = running();
 		t.onSackMessage(List.of("Added items:\n  +5 Flawless Onyx Gemstone (Gemstone Sack)\n  +3 Wheat (Agronomy Sack)\n  and 12 other items"), 1000);
-		assertEquals(List.of("Sack listesi kısa kesilmiş, bazı itemler sayılamadı", "Tanınmayan item: Flawless Onyx Gemstone"), t.warnings);
+		assertEquals(List.of("Tanınmayan item: Flawless Onyx Gemstone",
+			"Sack listesi kısa kesilmiş: 12 item görünmedi (mining itemi varsa /kazanc kontrol bulur)"), t.warnings);
+		assertTrue(t.truncatedUnknown);
+	}
+
+	@Test
+	void cutListHidingOnlyCorpseLootDoesNotWarn() {
+		Tracker t = running();
+		t.onChatLine("  UMBER CORPSE LOOT! ", 1000);
+		t.onChatLine("  REWARDS", 1000);
+		t.onChatLine("    \u2618 Flawed Onyx Gemstone x40", 1000);
+		t.onChatLine("    Green Goblin Egg x2", 1000);
+		t.onChatLine("    Glacite Powder x5,550", 1000);
+		t.onChatLine("\u25ac\u25ac\u25ac", 1000);
+		double corpse = t.sessionCoins;
+		assertEquals(40 * 400, corpse, 1e-9);
+		// The list shows the Tungsten mined, hides the 40 Onyx and the 2 eggs from the loot.
+		double c = t.onSackMessage(List.of("Added items:\n  +1,000 Tungsten (Mining Sack)\n  +42 other items.\n"), 5000);
+		assertEquals(1000 * 100, c, 1e-9);
+		assertEquals(List.of(), t.warnings);
+		assertFalse(t.truncatedUnknown);
+		// The loot was the hidden part: a later sack message showing Onyx counts it as mined.
+		assertEquals(10 * 400, t.onSackMessage(List.of("Added items:\n  +10 \u2618 Flawed Onyx Gemstone (Gemstones Sack)"), 9000), 1e-9);
+	}
+
+	@Test
+	void cutListHidingMoreThanCorpseLootWarns() {
+		Tracker t = running();
+		t.onChatLine("  UMBER CORPSE LOOT! ", 1000);
+		t.onChatLine("  REWARDS", 1000);
+		t.onChatLine("    Flawed Onyx Gemstone x40", 1000);
+		t.onChatLine("\u25ac\u25ac\u25ac", 1000);
+		t.onSackMessage(List.of("Added items:\n  +1,000 Tungsten (Mining Sack)\n  +100 other items.\n"), 5000);
+		assertEquals(List.of("Sack listesi kısa kesilmiş: 60 item görünmedi (mining itemi varsa /kazanc kontrol bulur)"), t.warnings);
+		assertTrue(t.truncatedUnknown);
+	}
+
+	@Test
+	void realCutListAfterLapisCorpseDoesNotWarn() throws Exception {
+		java.nio.file.Path f = java.nio.file.Path.of("src/test/resources/replay/gercek-kisa-liste-corpse.jsonl");
+		Replay.Result r = Replay.run(java.nio.file.Files.readAllLines(f, java.nio.charset.StandardCharsets.UTF_8));
+		assertEquals(List.of(), r.mismatches());
+		assertEquals(List.of(), r.tracker().warnings);
 	}
 
 	@Test
