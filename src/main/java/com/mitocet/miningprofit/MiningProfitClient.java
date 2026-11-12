@@ -342,6 +342,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 			// With the log on everything goes in; with it off only messages that gave a warning.
 			if (config.debugLog || tracker.warningCount != warned) debug.sack(hovers, coins, now);
 			logWarnings(warned, now);
+			// A list cut short that hid more than known corpse loot: let the API say what it was.
+			if (tracker.truncatedUnknown && config.autoFix && hasKey() && config.sackCheck.hasBase() && autoCheckAt < 0) {
+				autoCheckAt = now + AUTO_CHECK_MS;
+				autoTries = 0;
+			}
 			return;
 		}
 		for (String line : Tracker.lines(text)) {

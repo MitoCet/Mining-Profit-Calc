@@ -29,6 +29,8 @@ public final class Tracker {
 	private static final Pattern CORPSE_HEADER = Pattern.compile("CORPSE LOOT!");
 	private static final Pattern AMOUNT_FIRST = Pattern.compile("^\\+?([\\d,.]+)x?\\s+(.+)$");
 	private static final Pattern AMOUNT_LAST = Pattern.compile("^(.+?)\\s+x([\\d,.]+)$");
+	/** End of a long sack list: "+40 other items." (the rest is not shown). */
+	static final Pattern OTHER_ITEMS = Pattern.compile("([+-]?[\\d,.]+)\\s+other items");
 	// Message formats below are as SkyHanni reads them (github.com/hannibal002/SkyHanni, LGPL-2.1),
 	// with colour codes stripped: SuperCraftFeatures.craftedPattern and CorpseLoot.
 	/** "You Supercrafted Enchanted Mithril x3!": made with /craft (from the sacks), not mined. */
@@ -59,6 +61,12 @@ public final class Tracker {
 	private final Map<String, Credit> credits = new HashMap<>();
 
 	private record Credit(double count, long until) {}
+
+	// Every item of recent corpse loot (name -> count), also non-mining ones: a sack list cut short
+	// ("+40 other items") often only hides these, which were already read from the loot.
+	private final Map<String, Credit> corpseItems = new HashMap<>();
+	/** The last sack message was cut short and the hidden part is not all known corpse loot. */
+	public boolean truncatedUnknown;
 
 	private record Part(Prices.Item item, double amount) {}
 
@@ -101,6 +109,7 @@ public final class Tracker {
 		sessionBreakdown.clear();
 		runningSince = now;
 		credits.clear();
+		corpseItems.clear();
 		gained.clear();
 		lost.clear();
 		usedInSacks.clear();
@@ -123,6 +132,7 @@ public final class Tracker {
 		sessionMs = 0;
 		sessionBreakdown.clear();
 		credits.clear();
+		corpseItems.clear();
 		gained.clear();
 		lost.clear();
 		usedInSacks.clear();
@@ -263,14 +273,27 @@ public final class Tracker {
 		Map<String, Long> crafted = new HashMap<>(supercrafted);
 		supercrafted.clear();
 		int read = 0;
+		truncatedUnknown = false;
+		double hidden = 0;
+		// What corpse loot is still not seen in a sack list (name -> count), less what this one shows.
+		Map<String, Double> corpseLeft = new HashMap<>();
+		corpseItems.forEach((k, c) -> corpseLeft.put(k, c.count));
 		for (String hover : distinct) {
-			// A long list ends with "and N other items": those are not shown, so not counted.
-			if (strip(hover).contains("other items")) warn("Sack listesi kısa kesilmiş, bazı itemler sayılamadı");
+			// A long list ends with "+N other items.": those N are not shown.
+			Matcher other = OTHER_ITEMS.matcher(strip(hover));
+			if (other.find()) {
+				double n = number(other.group(1));
+				if (n > 0) hidden += n;
+			}
 			for (String line : hover.split("\n")) {
 				Matcher m = SACK_LINE.matcher(strip(line));
 				if (!m.matches()) continue;
 				read++;
 				double amount = number(m.group(1));
+				if (amount > 0) {
+					double shown = amount;
+					corpseLeft.computeIfPresent(key(m.group(2)), (k, c) -> c - shown > 0 ? c - shown : null);
+				}
 				Prices.Item item = p.byName(m.group(2));
 				if (item == null && p.loaded() && MINING_WORD.matcher(m.group(2)).find()) {
 					warn("Tanınmayan item: " + m.group(2).trim());
@@ -297,6 +320,20 @@ public final class Tracker {
 			}
 		}
 		if (read == 0) warn("Sack mesajı okunamadı (biçim farklı)");
+		if (hidden > 0) {
+			// The hidden part is first taken as corpse loot not shown yet: it was counted from the
+			// loot already, so nothing is missing. Only what is left over is unknown.
+			double known = 0;
+			for (double c : corpseLeft.values()) known += c;
+			double used = Math.min(known, hidden);
+			takeCorpseItems(corpseLeft, used);
+			double unknown = hidden - used;
+			if (unknown > 0) {
+				truncatedUnknown = true;
+				warn("Sack listesi kısa kesilmiş: " + Format.count(unknown)
+					+ " item görünmedi (mining itemi varsa /kazanc kontrol bulur)");
+			}
+		}
 		Map<String, Double> byFamily = new HashMap<>();
 		for (Part part : in) {
 			Prices.Item item = part.item();
@@ -509,6 +546,28 @@ public final class Tracker {
 		for (Iterator<Credit> it = credits.values().iterator(); it.hasNext(); ) {
 			if (it.next().until < now) it.remove();
 		}
+		corpseItems.values().removeIf((c) -> c.until < now);
+	}
+
+	/** Corpse loot taken as the hidden part of a sack list: forgotten, and its credits too. */
+	private void takeCorpseItems(Map<String, Double> left, double amount) {
+		Prices p = prices.get();
+		for (Map.Entry<String, Double> e : left.entrySet()) {
+			if (amount <= 0) break;
+			double t = Math.min(e.getValue(), amount);
+			amount -= t;
+			Credit c = corpseItems.get(e.getKey());
+			if (c != null) {
+				if (c.count - t > 0) corpseItems.put(e.getKey(), new Credit(c.count - t, c.until));
+				else corpseItems.remove(e.getKey());
+			}
+			Prices.Item item = p.byName(e.getKey());
+			if (item != null && item.mining()) useCredit(item.id(), t);
+		}
+	}
+
+	private static String key(String name) {
+		return Prices.key(name);
 	}
 
 	// ---------- corpse loot ----------
@@ -615,6 +674,11 @@ public final class Tracker {
 		} else if (first.matches()) {
 			name = first.group(2);
 			count = number(first.group(1));
+		}
+		// Every loot item that goes to the sacks (powder does not), for a sack list cut short.
+		if (running() && !name.toLowerCase(java.util.Locale.ROOT).contains("powder")) {
+			Credit seen = corpseItems.get(key(name));
+			corpseItems.put(key(name), new Credit((seen == null ? 0 : seen.count) + count, now + CORPSE_CREDIT_MS));
 		}
 		Prices.Item item = prices.get().byName(name);
 		if (item == null) return 0;
