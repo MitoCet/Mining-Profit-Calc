@@ -105,7 +105,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			t.setDaemon(true);
 			return t;
 		});
-		pool.scheduleAtFixedRate(this::refreshPrices, 0, PRICE_REFRESH_MIN, TimeUnit.MINUTES);
+		pool.scheduleAtFixedRate(() -> refreshPrices(), 0, PRICE_REFRESH_MIN, TimeUnit.MINUTES);
 
 		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
 			if (!overlay) onMessage(message);
@@ -323,7 +323,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 				.then(ClientCommands.literal("help").executes(this::help))
 				.then(ClientCommands.literal("yardim").executes(this::help))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
-					refreshPricesAsync();
+					FabricClientCommandSource src = c.getSource();
+					refreshPricesAsync((err) -> say(src, err == null ? prices.doneText(System.currentTimeMillis()) : "§cFiyatlar alınamadı (" + err + "). Eski fiyatlarla devam ediliyor."));
 					return say(c, "Fiyatlar siteden yeniden alınıyor.");
 				}))
 		));
@@ -648,12 +649,21 @@ public final class MiningProfitClient implements ClientModInitializer {
 	}
 
 	private void refreshPricesAsync() {
-		Thread t = new Thread(this::refreshPrices, "miningprofit-prices-now");
+		refreshPricesAsync(null);
+	}
+
+	/** {@code done} (optional) runs on the game thread with null on success, or the error. */
+	private void refreshPricesAsync(java.util.function.Consumer<String> done) {
+		Thread t = new Thread(() -> {
+			String err = refreshPrices();
+			if (done != null) Minecraft.getInstance().execute(() -> done.accept(err));
+		}, "miningprofit-prices-now");
 		t.setDaemon(true);
 		t.start();
 	}
 
-	private void refreshPrices() {
+	/** @return null on success, otherwise a short error for the chat. */
+	private String refreshPrices() {
 		try {
 			HttpRequest req = HttpRequest.newBuilder(URI.create(Prices.URL)).timeout(Duration.ofSeconds(30)).GET().build();
 			HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
@@ -662,10 +672,16 @@ public final class MiningProfitClient implements ClientModInitializer {
 			pricesJson = res.body();
 			pricesFresh = true;
 			if (config.debugLog) debug.prices(pricesJson, System.currentTimeMillis());
-			Files.writeString(pricesFile, res.body(), StandardCharsets.UTF_8);
+			try {
+				Files.writeString(pricesFile, res.body(), StandardCharsets.UTF_8);
+			} catch (Exception e) {
+				LOG.warn("Could not save mining values: {}", e.toString());
+			}
 			LOG.info("Mining values loaded");
+			return null;
 		} catch (Exception e) {
 			LOG.warn("Could not load mining values: {}", e.toString());
+			return e instanceof IllegalStateException ? e.getMessage() : e.getClass().getSimpleName();
 		}
 	}
 

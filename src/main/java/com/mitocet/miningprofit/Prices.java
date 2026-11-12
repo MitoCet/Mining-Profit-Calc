@@ -57,6 +57,20 @@ public final class Prices {
 		return !byId.isEmpty();
 	}
 
+	public int size() {
+		return byId.size();
+	}
+
+	/** Chat line after /kazanc fiyat succeeded: item count and how old the site's data is. */
+	public String doneText(long now) {
+		String text = "Fiyatlar yenilendi: " + size() + " item.";
+		if (timestamp > 0) {
+			long min = Math.max(0, (now - timestamp * 1000) / 60_000);
+			text += min < 1 ? " Veri az önce toplanmış." : " Veri " + min + " dk önce toplanmış.";
+		}
+		return text;
+	}
+
 	public Item byName(String name) {
 		return byName.get(key(name));
 	}

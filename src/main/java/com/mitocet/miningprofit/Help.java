@@ -50,7 +50,7 @@ public final class Help {
 			new Entry("anahtar", "/kazanc anahtar", "Corpse anahtarlarını düş (aç/kapa)",
 				"Açıkken kullanılan Tungsten/Umber/Skeleton Key'ler kazançtan düşülür (büyük kutuda Corpse Loot altında). Varsayılan kapalı. Resourceful anahtarı kurtarırsa düşülmez."),
 			new Entry("fiyat", "/kazanc fiyat", "Fiyatları hemen yenile",
-				"Değerler siteden yeniden alınır (normalde 15 dakikada bir kendiliğinden yenilenir). Eski fiyat kullanılıyorsa kutuda '⚠ Fiyatlar güncel değil' yazar."))),
+				"Değerler siteden yeniden alınır (normalde 15 dakikada bir kendiliğinden yenilenir). Bitince sohbete 'Fiyatlar yenilendi' (item sayısı, verinin yaşı) ya da hata yazılır. Eski fiyat kullanılıyorsa kutuda '⚠ Fiyatlar güncel değil' yazar."))),
 		new Group("Kontrol ve sorunlar", List.of(
 			new Entry("api", "/kazanc api <anahtar>", "Hypixel API anahtarını kaydet",
 				"developer.hypixel.net anahtarı sadece bu bilgisayardaki mod ayarına kaydedilir. /kazanc api sil siler, /kazanc api kayıtlı mı söyler. Sack kontrolü için gerekir."),
