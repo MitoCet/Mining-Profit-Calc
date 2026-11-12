@@ -28,7 +28,7 @@ public final class Help {
 			new Entry("devam", "/kazanc devam", "Durdurulan session'a devam eder",
 				"/kazanc dur ile durdurulan session'ın sayımı ve süresi kaldığı yerden sürer."),
 			new Entry("bitir", "/kazanc bitir", "Session'ı bitirir ve sıfırlar",
-				"Durdurur, özeti (kazanç, süre, saatlik) sohbete yazar ve session'ı sıfırlar. Toplam'a dokunmaz. Yeni session kendiliğinden başlamaz. API anahtarı varsa sack kontrolü de yapılır."),
+				"Durdurur, özeti (kazanç, süre, saatlik) sohbete yazar ve session'ı sıfırlar. Toplam'a dokunmaz. Yeni session kendiliğinden başlamaz. API anahtarı varsa sack kontrolü de yapılır. Session açıkken oyunu kapatırsan (ya da oyun çökerse) aynısı kendiliğinden olur: sonraki açışta özet sohbete yazılır, API anahtarı varsa önceki session'ın sack kontrolü kendiliğinden yapılır; yeni session yine /kazanc baslat ile başlar."),
 			new Entry("", "/kazanc", "Session ve Toplam özeti",
 				"Session ve Toplam kazancı, süresi ve saatliği sohbete yazar."),
 			new Entry("sifirla", "/kazanc sifirla", "Toplam kazancı sıfırlar",
@@ -70,6 +70,7 @@ public final class Help {
 	/** Things the mod does on its own, so the player knows what is and isn't counted. */
 	public static final List<String> NOTES = List.of(
 		"Sayılır: sack mesajlarındaki mining itemleri ve gemler, frozen corpse loot'u, /pickupstash ile gelenler.",
+		"Oyunu kapatınca session biter ve Toplam'a eklenir; sonraki açışta özeti ve sack kontrolü gelir, yeni session /kazanc baslat ile başlar.",
 		"Sayılmaz: envanterden ya da Sack menüsünden sack'e koyulanlar, /craft ile yapılanlar, sack'ten alınanlar.",
 		"Değerler sitedeki Mining sekmesinin en kârlı yoluyla hesaplanır. Kutuyu T ile sohbeti açıp sürükleyebilir, köşesinden büyütebilirsin.");
 }

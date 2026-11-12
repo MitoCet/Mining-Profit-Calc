@@ -142,4 +142,36 @@ class SackCheckTest {
 		// Added items count as read: the next check finds Tungsten right.
 		assertEquals(List.of(new SackCheck.Diff("GLACITE", -10, 0)), s.compare(api, PRICES).diffs());
 	}
+
+	@Test
+	void previousGameSessionIsCheckedThenNewBaseKeepsMissing() throws Exception {
+		SackCheck s = started();
+		s.onSackMessage(List.of("  +200 Tungsten (Mining Sack)"), PRICES);
+		// The game closed: the session ended, everything for the check goes to the config file.
+		s.endedCoins = 20_000.0;
+		s.previousPending = true;
+		Config c = new Config();
+		c.sackCheck = s;
+		java.nio.file.Path f = java.nio.file.Files.createTempFile("mpc", ".json");
+		c.save(f);
+		SackCheck back = Config.load(f).sackCheck;
+		assertTrue(back.previousPending);
+		assertEquals(20_000.0, back.endedCoins);
+		// Next game: the API has 300 more Tungsten, the mod read 200 (a sack message was lost).
+		Map<String, Long> now = Map.of("TUNGSTEN", 1300L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L);
+		SackCheck.Result r = back.compare(now, PRICES);
+		assertEquals(List.of(new SackCheck.Diff("TUNGSTEN", 300, 200)), r.diffs());
+		back.setMissing(r.diffs(), true);
+		back.rebase(now, 5);
+		// New base for the new session; the missing 100 stay for /kazanc duzelt (Toplam only).
+		assertFalse(back.previousPending);
+		assertTrue(back.missingEnded);
+		assertEquals(Map.of("TUNGSTEN", 100L), back.missing);
+		assertEquals(20_000.0, back.endedCoins);
+		assertTrue(back.read.isEmpty());
+		assertEquals(0, back.compare(now, PRICES).diffs().size());
+		// /kazanc duzelt adds them, but they are in the new base already: the new session still matches.
+		assertEquals(Map.of("TUNGSTEN", 100L), back.takeMissing());
+		assertEquals(0, back.compare(now, PRICES).diffs().size());
+	}
 }
