@@ -22,7 +22,7 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc sifirla` | Toplam kazancı sıfırlar |
 | `/kazanc goster`, `/kazanc gizle` | Session durmuşken de kutuyu gösterir / gizler (çalışırken kutu hep görünür) |
 | `/kazanc buyuk`, `/kazanc kucuk` | Kutuyu büyük (başlıklara ayrılmış kazanç) ya da küçük (kazanç, saatlik, süre) yapar |
-| `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır |
+| `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır; bitince "Fiyatlar yenilendi" (item sayısı, verinin yaşı) ya da hata yazar |
 | `/kazanc kayit` | Kaydı açar / kapatır: mod okuduğu mesajları dosyaya yazar (aşağıya bak) |
 | `/kazanc uyari` | Bu session'daki uyarıları sohbete yazar |
 | `/kazanc anahtar` | Corpse anahtarlarını kazançtan düşmeyi açar / kapatır (varsayılan kapalı) |
