@@ -8,6 +8,8 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 2. [Releases](https://github.com/MitoCet/Mining-Profit-Calc/releases) sayfasından en yeni `mining-profit-calc-1.0.X.jar` dosyasını indir (X = release numarası; eski sürümün jar'ını mods klasöründen sil).
 3. Dosyayı `.minecraft/mods` klasörüne at.
 
+Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mod en yeni jar'ı Releases'tan indirir (boyutu ve sha256'sı kontrol edilir) ve önce `mining-profit-calc-update/` klasöründe bekletir, çünkü Windows çalışan jar'ı silmeye izin vermez. Oyunu kapatınca küçük bir yardımcı işlem oyunun kapanmasını bekler, eski jar'ı siler ve yenisini mods klasörüne koyar; oyunu tekrar açınca yeni sürüm çalışır. Eski jar silinemezse yenisi konmaz (mod iki kez yüklenip oyun açılmamazlık etmesin), bir sonraki kapanışta tekrar denenir; ne olduğu `mining-profit-calc-update/update.log` dosyasında yazar. Oyun açılınca yeni sürüm varsa sohbette haber verilir (indirilmez); `/kazanc update bildirim` bu haberi açar/kapatır.
+
 ## Kullanım
 
 | Komut | Ne yapar |
@@ -29,6 +31,7 @@ Hypixel SkyBlock için Minecraft **26.2 Fabric** modu. Mining yaparken kazandı�
 | `/kazanc api <anahtar>` | Hypixel API anahtarını kaydeder (sadece bu bilgisayarda, `config/mining-profit-calc.json`); `/kazanc api sil` siler |
 | `/kazanc kontrol` | Sack sayılarını Hypixel API ile karşılaştırır (aşağıya bak) |
 | `/kazanc duzelt [otomatik\|elle]` | Sack mesajı gelmeyen itemleri API'den kazanca ekler (varsayılan elle) |
+| `/kazanc update` | En yeni jar'ı indirir; oyunu kapatıp açınca yeni sürüm yüklenir (eski jar kendiliğinden silinir). `/kazanc update bildirim`: açılışta yeni sürüm haberini açar/kapatır |
 | `/kazanc bosta [sn]` | Kaç saniye kazanç gelmezse sürenin duracağını gösterir / ayarlar (varsayılan 90, 0 = hiç durmasın) |
 
 Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
@@ -80,6 +83,8 @@ SkyHanni API anahtarı kullanmıyor (sack sayısını sadece mesajlardan okuyor)
 ## Teşekkür
 
 Mesaj biçimleri (Supercraft, corpse türü, Resourceful) ve sack menüsü / boşta durma kuralları [SkyHanni](https://github.com/hannibal002/SkyHanni)'den (LGPL-2.1) alındı.
+
+`/kazanc update`'in jar değiştirme yöntemi (yeni jar'ı bekletip oyun kapanınca ayrı bir işlemle eskisini silmek) SkyHanni ve NEU'nun kullandığı [libautoupdate](https://github.com/nea89o/libautoupdate)'teki fikirle aynı; kod buraya ayrıca yazıldı, kopyalanmadı.
 
 ## Derleme
 

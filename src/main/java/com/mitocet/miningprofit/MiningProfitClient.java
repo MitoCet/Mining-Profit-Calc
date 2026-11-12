@@ -62,6 +62,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private Hud hud;
 	private int ticks;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+	private Updater updater;
+	private volatile boolean updating;
+	private boolean updateChecked;
 
 	/** False until values were downloaded in this game session (only the saved ones are in use). */
 	public volatile boolean pricesFresh;
@@ -99,6 +102,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (config.sackCheck.read == null) config.sackCheck.read = new java.util.HashMap<>();
 		if (config.sackCheck.corpse == null) config.sackCheck.corpse = new java.util.HashMap<>();
 		tracker.corpseMining = (id, n) -> config.sackCheck.onCorpseItem(id, n);
+		setUpUpdater();
 
 		ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor((r) -> {
 			Thread t = new Thread(r, "miningprofit-prices");
@@ -145,12 +149,19 @@ public final class MiningProfitClient implements ClientModInitializer {
 		});
 
 		// Closing the game ends a running session's time here; the next game starts stopped.
-		ClientLifecycleEvents.CLIENT_STOPPING.register((client) -> save());
+		ClientLifecycleEvents.CLIENT_STOPPING.register((client) -> {
+			save();
+			updater.onGameClosing();
+		});
 		// Save every 30 seconds while running, so a crash loses little.
 		ClientTickEvents.END_CLIENT_TICK.register((client) -> {
 			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
 			if (ticks % 10 == 0) readInventory(client);
 			autoCheckTick(client);
+			if (!updateChecked && client.player != null) {
+				updateChecked = true;
+				if (config.updateNotify) checkUpdateOnJoin();
+			}
 			if (++ticks >= 600) {
 				ticks = 0;
 				if (tracker.running()) save();
@@ -319,6 +330,20 @@ public final class MiningProfitClient implements ClientModInitializer {
 						return say(c, config.autoFix
 							? "Otomatik: kontrolde bulunan eksikler kendiliğinden eklenir, sunucu değişiminden ~3 dk sonra kontrol kendiliğinden yapılır."
 							: "Elle: eksikler sadece /kazanc duzelt yazınca eklenir.");
+					})))
+				.then(ClientCommands.literal("update")
+					.executes((c) -> {
+						update(c.getSource());
+						return Command.SINGLE_SUCCESS;
+					})
+					.then(ClientCommands.argument("ayar", com.mojang.brigadier.arguments.StringArgumentType.word()).executes((c) -> {
+						String arg = com.mojang.brigadier.arguments.StringArgumentType.getString(c, "ayar").toLowerCase(java.util.Locale.ROOT);
+						if (!arg.equals("bildirim")) return say(c, "Kullanım: /kazanc update (indirir) ya da /kazanc update bildirim (açılışta haber vermeyi aç/kapa).");
+						config.updateNotify = !config.updateNotify;
+						save();
+						return say(c, config.updateNotify
+							? "Oyun açılınca yeni sürüm varsa haber verilecek."
+							: "Açılışta yeni sürüm haberi kapalı. /kazanc update ile yine bakabilirsin.");
 					})))
 				.then(ClientCommands.literal("help").executes(this::help))
 				.then(ClientCommands.literal("yardim").executes(this::help))
@@ -683,6 +708,101 @@ public final class MiningProfitClient implements ClientModInitializer {
 			LOG.warn("Could not load mining values: {}", e.toString());
 			return e instanceof IllegalStateException ? e.getMessage() : e.getClass().getSimpleName();
 		}
+	}
+
+	// ---------- /kazanc update ----------
+	private void setUpUpdater() {
+		var loader = FabricLoader.getInstance();
+		var mod = loader.getModContainer("miningprofit");
+		String version = mod.map((m) -> m.getMetadata().getVersion().getFriendlyString()).orElse("0");
+		Path jar = null;
+		try {
+			if (mod.isPresent() && mod.get().getOrigin().getKind() == net.fabricmc.loader.api.metadata.ModOrigin.Kind.PATH) {
+				for (Path p : mod.get().getOrigin().getPaths()) {
+					if (Files.isRegularFile(p) && p.getFileName().toString().endsWith(".jar")) jar = p;
+				}
+			}
+		} catch (Exception e) {
+			LOG.warn("Could not find the mod jar: {}", e.toString());
+		}
+		updater = new Updater(loader.getGameDir().resolve("mining-profit-calc-update"), jar, version);
+		updater.cleanUp();
+		// Also when the game is closed without CLIENT_STOPPING (runs at most once).
+		Runtime.getRuntime().addShutdownHook(new Thread(updater::onGameClosing, "miningprofit-update-exit"));
+	}
+
+	/** Chat line outside a command (e.g. on joining a server). */
+	private static void chat(Component c) {
+		Minecraft.getInstance().gui.getChat().addMessage(c);
+	}
+
+	private static Component clickable(String text, String command) {
+		return Component.literal("§6[Kazanç] §r" + text).setStyle(Style.EMPTY
+			.withHoverEvent(new HoverEvent.ShowText(Component.literal("Tıkla: " + command + " sohbete yazılır, Enter'a bas")))
+			.withClickEvent(new ClickEvent.SuggestCommand(command)));
+	}
+
+	/** First join of a game: tell (don't download) if a newer jar is on the Releases page. */
+	private void checkUpdateOnJoin() {
+		Minecraft mc = Minecraft.getInstance();
+		Thread t = new Thread(() -> {
+			try {
+				Path waiting = updater.pending();
+				if (waiting != null) {
+					String v = Updater.versionOf(waiting);
+					mc.execute(() -> chat(Component.literal("§6[Kazanç] §rv" + v + " indirildi, oyunu kapatıp açınca yüklenecek.")));
+					return;
+				}
+				Updater.Release r = updater.latest();
+				if (!updater.isNewer(r.version())) return;
+				mc.execute(() -> chat(clickable("§eYeni sürüm var: v" + r.version() + " (sende v" + updater.currentVersion()
+					+ "). İndirmek için /kazanc update yaz §b[tıkla]", "/kazanc update")));
+			} catch (Exception e) {
+				LOG.warn("Update check failed: {}", e.toString());
+			}
+		}, "miningprofit-update-check");
+		t.setDaemon(true);
+		t.start();
+	}
+
+	private void update(FabricClientCommandSource src) {
+		if (!updater.canUpdate()) {
+			say(src, "§cMod jar'ı bulunamadı, kendiliğinden güncellenemiyor. Elle indir: " + Updater.RELEASES_PAGE);
+			return;
+		}
+		if (updating) {
+			say(src, "Güncelleme zaten indiriliyor, bekle.");
+			return;
+		}
+		updating = true;
+		say(src, "Yeni sürüm aranıyor... (sende v" + updater.currentVersion() + ")");
+		Minecraft mc = Minecraft.getInstance();
+		Thread t = new Thread(() -> {
+			String answer;
+			try {
+				Updater.Release r = updater.latest();
+				Path waiting = updater.pending();
+				if (!updater.isNewer(r.version())) {
+					answer = "Zaten en yeni sürüm: v" + updater.currentVersion() + ".";
+				} else if (waiting != null && Updater.compare(Updater.versionOf(waiting), r.version()) >= 0) {
+					answer = "v" + Updater.versionOf(waiting) + " zaten indirildi. §eOyunu kapatıp açınca yüklenir.";
+				} else {
+					mc.execute(() -> say(src, "v" + r.version() + " indiriliyor..."));
+					updater.download(r);
+					answer = "§av" + r.version() + " indirildi. §eOyunu kapatıp aç: §rkapanınca eski jar (v"
+						+ updater.currentVersion() + ") silinir, yenisi mods klasörüne konur.";
+				}
+			} catch (Exception e) {
+				LOG.warn("Update failed: {}", e.toString());
+				answer = "§cGüncellenemedi: " + e.getMessage() + " §rElle: " + Updater.RELEASES_PAGE;
+			} finally {
+				updating = false;
+			}
+			String text = answer;
+			mc.execute(() -> say(src, text));
+		}, "miningprofit-update");
+		t.setDaemon(true);
+		t.start();
 	}
 
 	public void save() {
