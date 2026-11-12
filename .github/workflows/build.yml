@@ -9,13 +9,23 @@ on:
 permissions:
   contents: write
 
+# Main builds run one at a time (queued, never cancelled), so two PRs merged seconds apart
+# cannot race for the same release number. GitHub keeps only the newest waiting run; that is
+# fine because every main build checks out the newest main, which holds the skipped merge too.
+concurrency:
+  group: ${{ github.ref == 'refs/heads/main' && 'release-main' || format('build-{0}', github.ref) }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Main builds use the newest main (not the commit that started the run), so every release
+      # contains everything merged before it and the newest release always has all changes.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.ref == 'refs/heads/main' && 'main' || '' }}
       # Main builds get the next release number (newest v1.0.N tag + 1), so releases count 1, 2, 3...
       # without gaps. github.run_number was used before, but pull request builds used up numbers too.
       - name: Version
@@ -24,9 +34,14 @@ jobs:
           last=$(git tag -l 'v1.0.*' | sed 's/^v1\.0\.//' | sort -n | tail -1)
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             echo "version=1.0.$(( ${last:-0} + 1 ))" >> "$GITHUB_OUTPUT"
+            # An earlier queued build may already have released this exact commit: no duplicate release.
+            if [ -n "$last" ] && [ "$(git rev-list -n 1 "v1.0.$last")" = "$(git rev-parse HEAD)" ]; then
+              echo "released=true" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "version=1.0.${last:-0}-test" >> "$GITHUB_OUTPUT"
           fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -40,9 +55,11 @@ jobs:
           path: build/libs/mining-profit-calc-*.jar
       # Every build of main becomes a release, so the newest .jar is always on the Releases page.
       - name: Release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.ver.outputs.released != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}
+          # Tag the commit that was built, not whatever main points at when the release is made.
+          target_commitish: ${{ steps.ver.outputs.sha }}
           name: Mining Profit Calc ${{ steps.ver.outputs.version }}
           files: build/libs/mining-profit-calc-${{ steps.ver.outputs.version }}.jar
