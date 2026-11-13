@@ -47,8 +47,8 @@ public final class Config {
 	public SackCheck sackCheck;
 	/**
 	 * Sack items the API shows but no sack message did (e.g. leaving a Mineshaft before the
-	 * message came): false = added only with /kazanc duzelt, true = added on their own, and the
-	 * API is checked ~3 min after a server change (/kazanc duzelt otomatik | elle).
+	 * message came): false = added only with Düzelt in /kazanc gecmis, true = added on their own, and the
+	 * API is checked ~3 min after a server change (Oto düzelt button in /kazanc gecmis).
 	 */
 	public boolean autoFix;
 	/** On the first join of a game, say if a newer jar is on GitHub (/kazanc update bildirim). */

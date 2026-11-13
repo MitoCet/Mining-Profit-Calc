@@ -371,21 +371,6 @@ public final class MiningProfitClient implements ClientModInitializer {
 					check(c.getSource(), false);
 					return Command.SINGLE_SUCCESS;
 				}))
-				.then(ClientCommands.literal("duzelt")
-					.executes((c) -> {
-						fix(c.getSource(), false);
-						return Command.SINGLE_SUCCESS;
-					})
-					.then(ClientCommands.argument("mod", com.mojang.brigadier.arguments.StringArgumentType.word()).executes((c) -> {
-						String mode = com.mojang.brigadier.arguments.StringArgumentType.getString(c, "mod").toLowerCase(java.util.Locale.ROOT);
-						if (mode.startsWith("oto")) config.autoFix = true;
-						else if (mode.equals("elle")) config.autoFix = false;
-						else return say(c, "Kullanım: /kazanc duzelt (eksikleri ekler), /kazanc duzelt otomatik ya da /kazanc duzelt elle.");
-						save();
-						return say(c, config.autoFix
-							? "Otomatik: kontrolde bulunan eksikler kendiliğinden eklenir, sunucu değişiminden ~3 dk sonra kontrol kendiliğinden yapılır."
-							: "Elle: eksikler sadece /kazanc duzelt yazınca eklenir.");
-					})))
 				.then(ClientCommands.literal("update")
 					.executes((c) -> {
 						update(c.getSource());
@@ -608,7 +593,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		});
 	}
 
-	/** Tells what a check found (and adds the missing items when /kazanc duzelt otomatik is on). */
+	/** Tells what a check found (and adds the missing items when Oto düzelt is on in the menu). */
 	private void report(FabricClientCommandSource src, boolean auto, SackCheck.Result r, double modCoins, long now, boolean previous) {
 		String who = previous ? "Önceki session: " : "";
 		if (r.apiUnchanged()) {
@@ -644,12 +629,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 			fix(src, true);
 			return;
 		}
-		String fixHint = config.sackCheck.missing.isEmpty() ? ""
-			: " Eksikleri kazanca eklemek için §b/kazanc duzelt§r.";
+		boolean canFix = !config.sackCheck.missing.isEmpty();
 		// The same differences as the last check: one line, no new warning.
 		if (r.key().equals(config.sackCheck.lastReport)) {
-			if (!auto) say(src, who + "Önceki kontrolle aynı, değişen yok: " + r.diffs().size() + " itemde fark. Mod: "
-				+ Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins) + "§r." + fixHint);
+			if (!auto) {
+				say(src, who + "Önceki kontrolle aynı, değişen yok: " + r.diffs().size() + " itemde fark. Mod: "
+					+ Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins) + "§r.");
+				if (canFix) src.sendFeedback(fixHint());
+			}
 			return;
 		}
 		config.sackCheck.lastReport = r.key();
@@ -667,7 +654,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		}
 		if (shown > 12) say(src, "... ve " + (shown - 12) + " item daha.");
 		say(src, "Mod: " + Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins)
-			+ "§r (fark " + (missingCoins >= 0 ? "+" : "") + Format.coins(missingCoins) + ")." + fixHint);
+			+ "§r (fark " + (missingCoins >= 0 ? "+" : "") + Format.coins(missingCoins) + ").");
+		if (canFix) src.sendFeedback(fixHint());
 		say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Sunucu ya da Mineshaft değiştirince son sack mesajı gelmeyebilir; kalıcı fark çoğu zaman budur (ya da mesaj iki kez okunmuştur, /kazanc kayit). Envanterden sack'e koyduğun ya da sack'ten sattığın itemler de API farkına girer.");
 		long before = tracker.warningCount;
 		tracker.warn("API sack sayısıyla " + r.diffs().size() + " itemde fark: mod " + Format.coins(modCoins)
@@ -675,7 +663,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		logWarnings(before, now);
 	}
 
-	/** Adds the items the last check found missing to the earnings (/kazanc duzelt, or on its own). */
+	/** Adds the items the last check found missing to the earnings (Düzelt in the menu, or on its own). */
 	private void fix(FabricClientCommandSource src, boolean auto) {
 		long now = System.currentTimeMillis();
 		// After /kazanc bitir the items belong to the ended session, which is in the history.
@@ -713,7 +701,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		say(src, (auto ? "Sack mesajı gelmeyen itemler API'den eklendi: §a+" : "Eklendi: §a+") + Format.coins(coins) + "§r ("
-			+ String.join(", ", parts) + ")." + (auto ? " Elle eklemek istersen: /kazanc duzelt elle" : ""));
+			+ String.join(", ", parts) + ")." + (auto ? " Kapatmak için: /kazanc gecmis → Oto düzelt" : ""));
 	}
 
 	/** Adds what a saved session's check found missing to that session and to Toplam. */
@@ -750,7 +738,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		}
 		say(src, (auto ? "Sack mesajı gelmeyen itemler API'den eklendi: §a+" : "Eklendi: §a+") + Format.coins(coins) + "§r ("
 			+ String.join(", ", parts) + "), " + History.date(rec.start) + " session'ına ve Toplam'a."
-			+ (auto ? " Elle eklemek istersen: /kazanc duzelt elle" : ""));
+			+ (auto ? " Kapatmak için: /kazanc gecmis → Oto düzelt" : ""));
 	}
 
 	/** The check is about a session that has ended (not the one running now). */
@@ -820,6 +808,16 @@ public final class MiningProfitClient implements ClientModInitializer {
 		return rec.start == config.sackCheck.endedId && endedState(config.sackCheck.previousPending, now);
 	}
 
+	/** Oto düzelt in the menu: missing items are added on their own and the API is checked ~3 min after a server change. */
+	public void menuToggleAutoFix() {
+		config.autoFix = !config.autoFix;
+		save();
+		FabricClientCommandSource src = menuSource();
+		if (src != null) say(src, config.autoFix
+			? "Oto düzelt açık: kontrolde bulunan eksikler kendiliğinden eklenir, sunucu değişiminden ~3 dk sonra kontrol kendiliğinden yapılır."
+			: "Oto düzelt kapalı: eksikler sadece /kazanc gecmis'te Düzelt'e basınca eklenir.");
+	}
+
 	public void menuCheck() {
 		FabricClientCommandSource src = menuSource();
 		if (src != null) check(src, false);
@@ -839,7 +837,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		save();
 	}
 
-	/** The deleted session's missing items must not be added by /kazanc duzelt later. */
+	/** The deleted session's missing items must not be added by Düzelt later. */
 	private void forgetEndedMissing() {
 		if (config.sackCheck.endedId == 0) return;
 		config.sackCheck.missing = new java.util.HashMap<>();
@@ -1045,6 +1043,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 		// Fabric makes the connection's suggestion provider the client command source (as in its own test mod).
 		FabricClientCommandSource src = joinSource();
 		if (src != null) src.sendFeedback(c);
+	}
+
+	/** Missing items are added from the history menu (Mito: no /kazanc duzelt command any more). */
+	private static Component fixHint() {
+		return clickable("Eksikleri kazanca eklemek için §b/kazanc gecmis§r → session'ı seç → §bDüzelt§r. (Tıkla)", "/kazanc gecmis");
 	}
 
 	private static Component clickable(String text, String command) {

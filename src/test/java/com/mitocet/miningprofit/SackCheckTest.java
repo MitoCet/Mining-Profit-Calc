@@ -163,14 +163,14 @@ class SackCheckTest {
 		assertEquals(List.of(new SackCheck.Diff("TUNGSTEN", 300, 200)), r.diffs());
 		back.setMissing(r.diffs(), true);
 		back.rebase(now, 5);
-		// New base for the new session; the missing 100 stay for /kazanc duzelt (Toplam only).
+		// New base for the new session; the missing 100 stay for Düzelt (Toplam only).
 		assertFalse(back.previousPending);
 		assertTrue(back.missingEnded);
 		assertEquals(Map.of("TUNGSTEN", 100L), back.missing);
 		assertEquals(20_000.0, back.endedCoins);
 		assertTrue(back.read.isEmpty());
 		assertEquals(0, back.compare(now, PRICES).diffs().size());
-		// /kazanc duzelt adds them, but they are in the new base already: the new session still matches.
+		// Düzelt adds them, but they are in the new base already: the new session still matches.
 		assertEquals(Map.of("TUNGSTEN", 100L), back.takeMissing());
 		assertEquals(0, back.compare(now, PRICES).diffs().size());
 	}
