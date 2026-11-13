@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 /**
- * Checks on joining the game and on entering SkyBlock whether the saved Hypixel API key still works.
+ * Checks on entering SkyBlock whether the saved Hypixel API key still works.
  *
  * Hypixel removed its /key endpoint, so a small endpoint that needs a key is asked instead
  * (/v2/status of the player): 200 = works, 403 "Invalid API key" = expired or wrong. A Development

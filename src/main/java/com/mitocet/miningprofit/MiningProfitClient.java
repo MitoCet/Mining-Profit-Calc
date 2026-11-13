@@ -65,7 +65,6 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private Updater updater;
 	private volatile boolean updating;
 	private boolean updateChecked;
-	private boolean keyChecked;
 	/** In SkyBlock by the sidebar title (kept while there is no sidebar, e.g. right after a server change). */
 	private boolean inSkyBlock;
 	/** When the API key was last tested (ms), so island hops don't test it again and again. */
@@ -168,16 +167,15 @@ public final class MiningProfitClient implements ClientModInitializer {
 			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
 			if (ticks % 10 == 0) readInventory(client);
 			autoCheckTick(client);
-			if (!joined && client.player != null) joined = onFirstJoin();
-			if (!updateChecked && client.player != null) {
-				updateChecked = true;
-				if (config.updateNotify) checkUpdateOnJoin();
-			}
-			if (!keyChecked && client.player != null) {
-				keyChecked = true;
-				if (hasKey()) checkKey();
-			}
+			// Everything the mod says on joining waits until the player is in SkyBlock (Mito), not a lobby.
 			if (ticks % 20 == 0) skyBlockTick(client);
+			if (inSkyBlock && client.player != null) {
+				if (!joined) joined = onFirstJoin();
+				if (!updateChecked) {
+					updateChecked = true;
+					if (config.updateNotify) checkUpdateOnJoin();
+				}
+			}
 			if (++ticks >= 600) {
 				ticks = 0;
 				if (tracker.running()) save();
@@ -694,7 +692,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		save();
 	}
 
-	/** First time in a world this game: tell about the ended session and check it against the API (false = try again). */
+	/** First time in SkyBlock this game: tell about the ended session and check it against the API (false = try again). */
 	private boolean onFirstJoin() {
 		Config.Previous p = config.previous;
 		if (p == null) return true;
@@ -864,7 +862,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 			.withClickEvent(new ClickEvent.SuggestCommand(command)));
 	}
 
-	/** Once a second: entering SkyBlock (from a lobby or another game) tests the API key again. */
+	/**
+	 * Once a second: is the player in SkyBlock? Entering it (first time in a game, or again from a
+	 * lobby or another game; island hops don't count) tests the API key.
+	 */
 	private void skyBlockTick(Minecraft client) {
 		if (client.player == null || client.level == null) return;
 		var sidebar = client.level.getScoreboard().getDisplayObjective(net.minecraft.world.scores.DisplaySlot.SIDEBAR);
@@ -875,7 +876,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 	}
 
 	/**
-	 * On the first join of a game and on entering SkyBlock: say if the saved Hypixel API key no
+	 * On entering SkyBlock: say if the saved Hypixel API key no
 	 * longer works (every time), or runs out soon (once a game).
 	 */
 	private void checkKey() {
@@ -919,7 +920,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		t.start();
 	}
 
-	/** First join of a game: tell (don't download) if a newer jar is on the Releases page. */
+	/** First time in SkyBlock in a game: tell (don't download) if a newer jar is on the Releases page. */
 	private void checkUpdateOnJoin() {
 		Minecraft mc = Minecraft.getInstance();
 		Thread t = new Thread(() -> {
