@@ -69,7 +69,7 @@ Uyarı veren mesaj ham haliyle (hover dahil) `config/mining-profit-calc-debug.lo
 
 ## API ile sack kontrolü
 
-Modun sack mesajlarını doğru okuyup okumadığını Hypixel API'deki gerçek sack sayılarıyla karşılaştırır. Kullanmak için [developer.hypixel.net](https://developer.hypixel.net/) anahtarını `/kazanc api <anahtar>` ile gir (Development Key 3 günde biter; bitince mod "anahtar geçersiz" der). Anahtar sadece bu bilgisayardaki ayar dosyasında durur. Oyunda SkyBlock API ayarlarında Inventory/Sacks API açık olmalı.
+Modun sack mesajlarını doğru okuyup okumadığını Hypixel API'deki gerçek sack sayılarıyla karşılaştırır. Kullanmak için [developer.hypixel.net](https://developer.hypixel.net/) anahtarını `/kazanc api <anahtar>` ile gir (Development Key 3 günde biter). Oyuna her girişte mod anahtarın hâlâ çalışıp çalışmadığına bakar: bitmişse ya da geçersizse sohbette kırmızı uyarı verir, kaydedildikten 3 gün dolmasına 12 saatten az kaldıysa sarı uyarı verir; çalışıyorsa bir şey yazmaz. Anahtar sadece bu bilgisayardaki ayar dosyasında durur. Oyunda SkyBlock API ayarlarında Inventory/Sacks API açık olmalı.
 
 - `/kazanc baslat`: API'den başlangıç sack sayıları alınır.
 - O andan sonra mining itemlerinin her sack mesajı satırı (+ ve −, kazanç kurallarından bağımsız) toplanır, session dursa bile.

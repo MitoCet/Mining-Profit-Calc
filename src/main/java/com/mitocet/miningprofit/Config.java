@@ -35,6 +35,8 @@ public final class Config {
 	public int idleSeconds = 90;
 	/** Hypixel API key for the sack check (/kazanc api). Stays only in this file on this computer. */
 	public String apiKey;
+	/** When the API key was saved (ms; 0 = unknown, saved before this was kept). A Development Key lasts 3 days. */
+	public long apiKeySetAt;
 	/** Sack check against the Hypixel API: base counts and what was read since. */
 	public SackCheck sackCheck;
 	/**
