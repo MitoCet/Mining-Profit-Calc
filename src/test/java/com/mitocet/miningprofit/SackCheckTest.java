@@ -134,8 +134,8 @@ class SackCheckTest {
 		SackCheck s = started();
 		s.onSackMessage(List.of("  +500 Tungsten (Mining Sack)"), PRICES);
 		Map<String, Long> api = Map.of("TUNGSTEN", 2000L, "GLACITE", 40L);
-		s.setMissing(s.compare(api, PRICES).diffs());
-		// Glacite went down: never taken off the earnings.
+		s.setMissing(s.compare(api, PRICES).diffs(), PRICES);
+		// Glacite went down (its family is down): never taken off the earnings.
 		assertEquals(Map.of("TUNGSTEN", 500L), s.missing);
 		assertEquals(Map.of("TUNGSTEN", 500L), s.takeMissing());
 		assertTrue(s.missing.isEmpty());
@@ -161,7 +161,7 @@ class SackCheckTest {
 		Map<String, Long> now = Map.of("TUNGSTEN", 1300L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L);
 		SackCheck.Result r = back.compare(now, PRICES);
 		assertEquals(List.of(new SackCheck.Diff("TUNGSTEN", 300, 200)), r.diffs());
-		back.setMissing(r.diffs(), true);
+		back.setMissing(r.diffs(), PRICES, true);
 		back.rebase(now, 5);
 		// New base for the new session; the missing 100 stay for Düzelt (Toplam only).
 		assertFalse(back.previousPending);
@@ -173,5 +173,54 @@ class SackCheckTest {
 		// Düzelt adds them, but they are in the new base already: the new session still matches.
 		assertEquals(Map.of("TUNGSTEN", 100L), back.takeMissing());
 		assertEquals(0, back.compare(now, PRICES).diffs().size());
+	}
+
+	@Test
+	void lostSupercraftMessageIsNettedInsideTheFamily() {
+		SackCheck s = started();
+		// Mined 3.200 Glacite, then Supercrafted 10 Enchanted Glacite (1.600 Glacite) and changed server
+		// before the sack message came; 5 more Enchanted Glacite came from a lost message too.
+		s.onSackMessage(List.of("  +3,200 Glacite (Mining Sack)"), PRICES);
+		Map<String, Long> api = Map.of("TUNGSTEN", 1000L, "GLACITE", 50L + 1600, "ENCHANTED_GLACITE", 15L,
+			"ENCHANTED_BREAD", 3L);
+		List<SackCheck.Diff> diffs = s.compare(api, PRICES).diffs();
+		assertEquals(2, diffs.size());
+		// Fark and Düzelt: 15 Enchanted (24.000) - 1.600 Glacite (16.000) = 8.000, not 24.000.
+		Map<String, Long> m = SackCheck.familyMissing(diffs, PRICES);
+		assertEquals(Map.of("GLACITE", -1600L, "ENCHANTED_GLACITE", 15L), m);
+		assertEquals(8000, SackCheck.missingCoins(m, PRICES), 0.001);
+		List<SackCheck.Fix> fixes = SackCheck.fixes(m, PRICES, id -> PRICES.byId(id).value());
+		assertEquals(1, fixes.size());
+		assertEquals("ENCHANTED_GLACITE", fixes.get(0).item().id());
+		assertEquals(5, fixes.get(0).count(), 0.001);
+		assertEquals(8000, fixes.get(0).coins(), 0.001);
+		// Düzelt makes the read the API's: the next check matches.
+		s.setMissing(diffs, PRICES);
+		s.takeMissing();
+		assertEquals(List.of(), s.compare(api, PRICES).diffs());
+	}
+
+	@Test
+	void familyThatWentDownIsNotAdded() {
+		SackCheck s = started();
+		s.onSackMessage(List.of("  +3,200 Glacite (Mining Sack)"), PRICES);
+		// 1 Enchanted (1.600) missing but 3.150 Glacite (31.500) gone: nothing to add.
+		Map<String, Long> api = Map.of("TUNGSTEN", 1000L, "GLACITE", 100L, "ENCHANTED_GLACITE", 1L, "ENCHANTED_BREAD", 3L);
+		List<SackCheck.Diff> diffs = s.compare(api, PRICES).diffs();
+		assertEquals(2, diffs.size());
+		assertTrue(SackCheck.familyMissing(diffs, PRICES).isEmpty());
+	}
+
+	@Test
+	void corpseLootThatStayedInTheInventoryIsNotADifference() {
+		SackCheck s = started();
+		// 2 Tungsten from a corpse went into the inventory (never into the sacks).
+		s.onCorpseItem("TUNGSTEN", 2);
+		assertEquals(List.of(), s.compare(Map.of("TUNGSTEN", 1000L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L), PRICES).diffs());
+		// Or into the sacks without a sack message: also right.
+		assertEquals(List.of(), s.compare(Map.of("TUNGSTEN", 1002L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L), PRICES).diffs());
+		// More than the loot: the rest is missing (read counts the loot).
+		assertEquals(List.of(new SackCheck.Diff("TUNGSTEN", 5, 2)),
+			s.compare(Map.of("TUNGSTEN", 1005L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L), PRICES).diffs());
 	}
 }

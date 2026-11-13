@@ -80,7 +80,8 @@ class HistoryTest {
 		SackCheck.Result res = new SackCheck.Result(false,
 			List.of(new SackCheck.Diff("TUNGSTEN", 14, 10), new SackCheck.Diff("ROUGH_RUBY_GEM", 0, 2)), 3);
 		r.check = History.check(res, 1000, PRICES, 9_000);
-		assertEquals(400 - 10, r.check.diffCoins, 1e-9);
+		// Ruby went down: never taken off, so the Fark is what Düzelt adds.
+		assertEquals(400, r.check.diffCoins, 1e-9);
 		assertEquals(Map.of("TUNGSTEN", 4L), r.check.missing);
 		assertEquals(400, r.check.missingCoins(), 1e-9);
 		assertTrue(History.status(r.check).startsWith("⚠ sack farkı +"));
@@ -106,5 +107,37 @@ class HistoryTest {
 		Config back = g.fromJson(g.toJson(c), Config.class);
 		assertEquals(1000, back.history.sessions.get(0).coins, 1e-9);
 		assertEquals(1000, back.history.sessions.get(0).breakdown.total(Breakdown.METAL), 1e-9);
+	}
+
+	/**
+	 * Mito's session of 14 Kas 00:23 (v1.0.33): the menu showed Fark +2,04M but Düzelt +14,38M. Netted
+	 * per family both are ~7,59M: the Enchanted Glacite that a lost Supercraft message hid (+10,3M)
+	 * minus the Glacite it used (-6,6M), and the 2 Flawless Onyx from corpse loot that stayed in the
+	 * inventory are no longer a -5,7M difference.
+	 */
+	@Test
+	void oldCheckIsNettedPerFamily() throws Exception {
+		java.nio.file.Path dir = java.nio.file.Path.of("src/test/resources/history");
+		Prices p = Prices.parse(java.nio.file.Files.readString(dir.resolve("eski-kontrol-fiyat.json")));
+		History.Check c = new com.google.gson.Gson().fromJson(
+			java.nio.file.Files.readString(dir.resolve("eski-kontrol.json")), History.Check.class);
+		assertEquals(14_383_445, c.missingCoins(), 1);
+		assertTrue(c.renet(p));
+		assertEquals(c.diffCoins, c.missingCoins(), 0.001);
+		assertEquals(7_594_482, c.diffCoins, 1);
+		assertEquals(-229_863L, c.missing.get("GLACITE"));
+		assertEquals(2_240L, c.missing.get("ENCHANTED_GLACITE"));
+		// Onyx went down overall (the Flawless ones): not added, never taken off.
+		assertTrue(!c.missing.containsKey("FLAWLESS_ONYX_GEM") && !c.missing.containsKey("FINE_ONYX_GEM"));
+		// Düzelt adds one line per family, never negative counts.
+		List<SackCheck.Fix> fixes = SackCheck.fixes(c.missing, p, id -> p.byId(id).value());
+		double sum = 0;
+		for (SackCheck.Fix f : fixes) {
+			assertTrue(f.count() > 0);
+			sum += f.coins();
+		}
+		assertEquals(c.diffCoins, sum, 1);
+		// Done once.
+		assertTrue(!c.renet(p));
 	}
 }

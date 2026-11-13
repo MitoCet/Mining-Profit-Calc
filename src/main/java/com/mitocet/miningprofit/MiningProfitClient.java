@@ -115,6 +115,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (config.sackCheck.read == null) config.sackCheck.read = new java.util.HashMap<>();
 		if (config.sackCheck.corpse == null) config.sackCheck.corpse = new java.util.HashMap<>();
 		tracker.corpseMining = (id, n) -> config.sackCheck.onCorpseItem(id, n);
+		renetChecks();
 		// A session still here means the game did not close normally (crash): end it the same way.
 		endOnExit(System.currentTimeMillis(), true);
 		setUpUpdater();
@@ -605,7 +606,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			say(src, "Hypixel sack verisini henüz güncellemedi (birkaç dakika gecikebiliyor). 2-3 dk sonra /kazanc kontrol yaz.");
 			return;
 		}
-		config.sackCheck.setMissing(r.diffs(), previous);
+		config.sackCheck.setMissing(r.diffs(), prices, previous);
 		// Kept with the session it belongs to, for /kazanc gecmis.
 		History.Check hc = History.check(r, modCoins, prices, now);
 		if (endedState(previous, now)) {
@@ -621,11 +622,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 			if (!auto) say(src, who + "§aSack sayıları tutuyor§r: API ile modun okuduğu aynı (" + r.matched() + " item). Kazanç: " + Format.coins(modCoins) + ".");
 			return;
 		}
-		double missingCoins = 0;
-		for (SackCheck.Diff d : r.diffs()) {
-			Prices.Item item = prices.byId(d.id());
-			missingCoins += d.missing() * (item != null ? item.value() : 0);
-		}
+		// Netted per family, the same amount Düzelt adds.
+		double missingCoins = SackCheck.missingCoins(SackCheck.familyMissing(r.diffs(), prices), prices);
 		if (config.autoFix) {
 			fix(src, true);
 			return;
@@ -686,12 +684,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 		Map<String, Long> missing = config.sackCheck.takeMissing();
 		double coins = 0;
 		List<String> parts = new ArrayList<>();
-		for (Map.Entry<String, Long> e : missing.entrySet()) {
-			Prices.Item item = prices.byId(e.getKey());
-			if (item == null || item.value() <= 0) continue;
-			tracker.addFix(item, e.getValue(), true);
-			coins += e.getValue() * item.value();
-			parts.add(signed(e.getValue()) + " " + (item.name() != null ? item.name() : e.getKey()));
+		for (SackCheck.Fix f : SackCheck.fixes(missing, prices, id -> prices.byId(id).value())) {
+			tracker.addFix(f.item(), f.count(), true);
+			coins += f.coins();
+			parts.add(fixText(f));
 		}
 		if (coins > 0) tracker.clearApiWarnings();
 		if (config.liveCheck != null) {
@@ -708,6 +704,26 @@ public final class MiningProfitClient implements ClientModInitializer {
 			+ String.join(", ", parts) + ")." + (auto ? " Kapatmak için: /kazanc gecmis → Oto düzelt" : ""));
 	}
 
+	/**
+	 * Checks saved by an older version: Fark and Düzelt are netted per family now (they did not agree
+	 * before). The ended session's items waiting in the sack check follow its saved check.
+	 */
+	private void renetChecks() {
+		if (config.liveCheck != null) config.liveCheck.renet(prices);
+		for (History.Session rec : config.history.sessions) {
+			if (rec.check == null || !rec.check.renet(prices)) continue;
+			if (config.sackCheck.endedId != 0 && rec.start == config.sackCheck.endedId && rec.check.missing != null) {
+				config.sackCheck.missing = new java.util.HashMap<>(rec.check.missing);
+			}
+		}
+	}
+
+	/** "+803 Enchanted Glacite" for a Düzelt line (a family's net, in its item that went up the most). */
+	private static String fixText(SackCheck.Fix f) {
+		String name = f.item().name() != null ? f.item().name() : f.item().id();
+		return "+" + Format.count(Math.round(f.count())) + " " + name;
+	}
+
 	/** Adds what a saved session's check found missing to that session and to Toplam. */
 	private void fixRecord(FabricClientCommandSource src, History.Session rec, boolean auto) {
 		long now = System.currentTimeMillis();
@@ -715,15 +731,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 		double coins = 0;
 		List<String> parts = new ArrayList<>();
 		if (c != null && c.missing != null) {
-			for (History.Item i : c.items) {
-				Long n = c.missing.get(i.id);
-				Prices.Item item = prices.byId(i.id);
-				if (n == null || n <= 0 || item == null) continue;
-				double value = i.value > 0 ? i.value : item.value();
-				double added = tracker.addFixTo(rec, item, n, value);
+			Map<String, Double> stored = new java.util.HashMap<>();
+			for (History.Item i : c.items) if (i.value > 0) stored.put(i.id, i.value);
+			for (SackCheck.Fix f : SackCheck.fixes(c.missing, prices,
+				id -> stored.getOrDefault(id, prices.byId(id).value()))) {
+				double added = tracker.addFixTo(rec, f.item(), f.count(), f.coins() / f.count());
 				if (added <= 0) continue;
 				coins += added;
-				parts.add(signed(n) + " " + i.name);
+				parts.add(fixText(f));
 			}
 			c.fixedCoins += coins;
 			c.missing = new java.util.HashMap<>();

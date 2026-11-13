@@ -1,0 +1,110 @@
+{
+ "ts": 1794609048,
+ "items": {
+  "ENCHANTED_GLACITE": {
+   "v": 4598.52,
+   "fam": "GLACITE",
+   "name": "Enchanted Glacite"
+  },
+  "GLACITE": {
+   "v": 28.74,
+   "fam": "GLACITE",
+   "name": "Glacite"
+  },
+  "ENCHANTED_HARD_STONE": {
+   "v": 524.61,
+   "fam": "HARD_STONE",
+   "name": "Enchanted Hard Stone"
+  },
+  "HARD_STONE": {
+   "v": 0.91,
+   "fam": "HARD_STONE",
+   "name": "Hard Stone"
+  },
+  "COAL": {
+   "v": 1.01,
+   "fam": "ORE_COAL",
+   "name": "Coal"
+  },
+  "IRON_INGOT": {
+   "v": 2.16,
+   "fam": "ORE_IRON",
+   "name": "Iron Ingot"
+  },
+  "ROUGH_AMBER_GEM": {
+   "v": 4.87,
+   "fam": "GEM_AMBER",
+   "name": "Rough Amber Gemstone"
+  },
+  "FLAWED_AMBER_GEM": {
+   "v": 389.51,
+   "fam": "GEM_AMBER",
+   "name": "Flawed Amber Gemstone"
+  },
+  "FINE_ONYX_GEM": {
+   "v": 36539.97,
+   "fam": "GEM_ONYX",
+   "name": "Fine Onyx Gemstone"
+  },
+  "FLAWLESS_ONYX_GEM": {
+   "v": 2866507.89,
+   "fam": "GEM_ONYX",
+   "name": "Flawless Onyx Gemstone"
+  },
+  "FINE_CITRINE_GEM": {
+   "v": 36026.07,
+   "fam": "GEM_CITRINE",
+   "name": "Fine Citrine Gemstone"
+  },
+  "ROUGH_AMETHYST_GEM": {
+   "v": 4.16,
+   "fam": "GEM_AMETHYST",
+   "name": "Rough Amethyst Gemstone"
+  },
+  "FLAWED_AMETHYST_GEM": {
+   "v": 332.71,
+   "fam": "GEM_AMETHYST",
+   "name": "Flawed Amethyst Gemstone"
+  },
+  "ROUGH_SAPPHIRE_GEM": {
+   "v": 4.5,
+   "fam": "GEM_SAPPHIRE",
+   "name": "Rough Sapphire Gemstone"
+  },
+  "FLAWED_SAPPHIRE_GEM": {
+   "v": 360.28,
+   "fam": "GEM_SAPPHIRE",
+   "name": "Flawed Sapphire Gemstone"
+  },
+  "FINE_AQUAMARINE_GEM": {
+   "v": 38013.12,
+   "fam": "GEM_AQUAMARINE",
+   "name": "Fine Aquamarine Gemstone"
+  },
+  "FINE_PERIDOT_GEM": {
+   "v": 36336.84,
+   "fam": "GEM_PERIDOT",
+   "name": "Fine Peridot Gemstone"
+  },
+  "ROUGH_JADE_GEM": {
+   "v": 4.8,
+   "fam": "GEM_JADE",
+   "name": "Rough Jade Gemstone"
+  },
+  "FLAWED_JADE_GEM": {
+   "v": 383.71,
+   "fam": "GEM_JADE",
+   "name": "Flawed Jade Gemstone"
+  },
+  "ROUGH_TOPAZ_GEM": {
+   "v": 4.92,
+   "fam": "GEM_TOPAZ",
+   "name": "Rough Topaz Gemstone"
+  },
+  "FLAWED_TOPAZ_GEM": {
+   "v": 393.24,
+   "fam": "GEM_TOPAZ",
+   "name": "Flawed Topaz Gemstone"
+  }
+ }
+}

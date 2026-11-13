@@ -1,0 +1,178 @@
+{
+  "at": 1794609976314,
+  "matched": 7,
+  "modCoins": 31606383.919999994,
+  "diffCoins": 2044166.4399999985,
+  "items": [
+    {
+      "id": "COAL",
+      "name": "Coal",
+      "api": 147,
+      "read": 0,
+      "value": 1.01
+    },
+    {
+      "id": "ENCHANTED_GLACITE",
+      "name": "Enchanted Glacite",
+      "api": 1990,
+      "read": -250,
+      "value": 4598.52
+    },
+    {
+      "id": "ENCHANTED_HARD_STONE",
+      "name": "Enchanted Hard Stone",
+      "api": 285,
+      "read": 281,
+      "value": 524.61
+    },
+    {
+      "id": "FINE_AQUAMARINE_GEM",
+      "name": "Fine Aquamarine Gemstone",
+      "api": 7,
+      "read": 2,
+      "value": 38013.12
+    },
+    {
+      "id": "FINE_CITRINE_GEM",
+      "name": "Fine Citrine Gemstone",
+      "api": 9,
+      "read": 3,
+      "value": 36026.07
+    },
+    {
+      "id": "FINE_ONYX_GEM",
+      "name": "Fine Onyx Gemstone",
+      "api": 8,
+      "read": 3,
+      "value": 36539.97
+    },
+    {
+      "id": "FINE_PERIDOT_GEM",
+      "name": "Fine Peridot Gemstone",
+      "api": 13,
+      "read": 4,
+      "value": 36336.84
+    },
+    {
+      "id": "FLAWED_AMBER_GEM",
+      "name": "Flawed Amber Gemstone",
+      "api": 480,
+      "read": 240,
+      "value": 389.51
+    },
+    {
+      "id": "FLAWED_AMETHYST_GEM",
+      "name": "Flawed Amethyst Gemstone",
+      "api": 5998,
+      "read": 5096,
+      "value": 332.71
+    },
+    {
+      "id": "FLAWED_JADE_GEM",
+      "name": "Flawed Jade Gemstone",
+      "api": 30428,
+      "read": 25568,
+      "value": 383.71
+    },
+    {
+      "id": "FLAWED_SAPPHIRE_GEM",
+      "name": "Flawed Sapphire Gemstone",
+      "api": 11027,
+      "read": 9223,
+      "value": 360.28
+    },
+    {
+      "id": "FLAWED_TOPAZ_GEM",
+      "name": "Flawed Topaz Gemstone",
+      "api": 320,
+      "read": 240,
+      "value": 393.24
+    },
+    {
+      "id": "FLAWLESS_ONYX_GEM",
+      "name": "Flawless Onyx Gemstone",
+      "api": 0,
+      "read": 2,
+      "value": 2866507.89
+    },
+    {
+      "id": "GLACITE",
+      "name": "Glacite",
+      "api": -6540,
+      "read": 223323,
+      "value": 28.74
+    },
+    {
+      "id": "HARD_STONE",
+      "name": "Hard Stone",
+      "api": -125481,
+      "read": -140819,
+      "value": 0.91
+    },
+    {
+      "id": "IRON_INGOT",
+      "name": "Iron Ingot",
+      "api": 316,
+      "read": 0,
+      "value": 2.16
+    },
+    {
+      "id": "ROUGH_AMBER_GEM",
+      "name": "Rough Amber Gemstone",
+      "api": 2600,
+      "read": 1400,
+      "value": 4.87
+    },
+    {
+      "id": "ROUGH_AMETHYST_GEM",
+      "name": "Rough Amethyst Gemstone",
+      "api": 36592,
+      "read": 32025,
+      "value": 4.16
+    },
+    {
+      "id": "ROUGH_JADE_GEM",
+      "name": "Rough Jade Gemstone",
+      "api": 170506,
+      "read": 143673,
+      "value": 4.8
+    },
+    {
+      "id": "ROUGH_SAPPHIRE_GEM",
+      "name": "Rough Sapphire Gemstone",
+      "api": 60935,
+      "read": 49876,
+      "value": 4.5
+    },
+    {
+      "id": "ROUGH_TOPAZ_GEM",
+      "name": "Rough Topaz Gemstone",
+      "api": 2760,
+      "read": 1400,
+      "value": 4.92
+    }
+  ],
+  "missing": {
+    "FINE_AQUAMARINE_GEM": 5,
+    "ROUGH_AMETHYST_GEM": 4567,
+    "FINE_PERIDOT_GEM": 9,
+    "COAL": 147,
+    "ROUGH_SAPPHIRE_GEM": 11059,
+    "FLAWED_AMBER_GEM": 240,
+    "ROUGH_JADE_GEM": 26833,
+    "FLAWED_SAPPHIRE_GEM": 1804,
+    "ENCHANTED_GLACITE": 2240,
+    "FINE_ONYX_GEM": 5,
+    "ENCHANTED_HARD_STONE": 4,
+    "FLAWED_TOPAZ_GEM": 80,
+    "HARD_STONE": 15338,
+    "IRON_INGOT": 316,
+    "FLAWED_JADE_GEM": 4860,
+    "FINE_CITRINE_GEM": 6,
+    "FLAWED_AMETHYST_GEM": 902,
+    "ROUGH_TOPAZ_GEM": 1360,
+    "ROUGH_AMBER_GEM": 1200
+  },
+  "fixedCoins": 0.0,
+  "netted": false
+}
