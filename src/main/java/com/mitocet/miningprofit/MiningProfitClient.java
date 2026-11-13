@@ -453,8 +453,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		// The item held on the cursor in a menu still belongs to the inventory.
 		add(stacks, player.containerMenu.getCarried());
 		long now = System.currentTimeMillis();
-		double ore = tracker.onInventory(stacks, now);
-		if (config.debugLog && ore > 0) debug.simple("ore " + Math.round(ore), now);
+		double ore = tracker.onInventory(stacks, now); // mining items picked up into the inventory
+		if (config.debugLog && ore > 0) debug.simple("inv-earn " + Math.round(ore), now);
 		if (config.debugLog) {
 			// Only mining items, and only when they changed.
 			List<Map.Entry<String, Integer>> mining = new ArrayList<>();

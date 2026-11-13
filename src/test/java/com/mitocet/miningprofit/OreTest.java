@@ -140,10 +140,10 @@ class OreTest {
 	}
 
 	@Test
-	void otherMiningItemsInTheInventoryStillDoNotCount() {
+	void otherMiningItemsInTheInventoryCountToo() {
 		Tracker t = running();
 		t.onInventory(inv(), 1000);
-		assertEquals(0, t.onInventory(inv("Tungsten", 100), 1500), 1e-9);
+		assertEquals(100 * 100, t.onInventory(inv("Tungsten", 100), 1500), 1e-9);
 	}
 
 	@Test
@@ -192,12 +192,12 @@ class OreTest {
 	}
 
 	@Test
-	void autoCraftInTheInventoryToTheSacksIsNotCountedForOtherItemsEither() {
+	void autoCraftInTheInventoryToTheSacksIsNotCountedAgain() {
 		Tracker t = running();
 		t.onInventory(inv("Tungsten", 100), 1000);
-		// 60 more fell into the inventory (not counted, as before), then 160 were auto-crafted:
+		// 60 more fell into the inventory (counted), then 160 were auto-crafted:
 		// Hypixel puts the Enchanted Tungsten straight into the sacks.
-		assertEquals(0, t.onInventory(inv("Tungsten", 160), 1500), 1e-9);
+		assertEquals(60 * 100, t.onInventory(inv("Tungsten", 160), 1500), 1e-9);
 		t.onInventory(inv(), 2000);
 		assertEquals(0, t.onSackMessage(List.of("  +1 Enchanted Tungsten (Mining Sack)"), 30_000), 1e-9);
 		// Supercraft (/craft) products are not counted either.

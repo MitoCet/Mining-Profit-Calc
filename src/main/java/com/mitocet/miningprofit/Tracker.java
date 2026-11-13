@@ -15,11 +15,11 @@ import java.util.regex.Pattern;
  *
  * Two sources:
  * - Sack messages ("[Sacks] +1,234 items"): their hover text lists every item that went in or out.
- *   Only Mining tab materials and gemstones count. Items put in from the inventory do not count;
- *   items from the stash do. Taking items out never counts negative, and crafting what was taken
+ *   Only Mining tab materials, gemstones and ores count. Items put in from the inventory do not
+ *   count (they were counted when they came into the inventory, or were not mined). Taking items out never counts negative, and crafting what was taken
  *   out (e.g. Glacite into Enchanted Glacite) and putting it back adds nothing (see onSackMessage).
- * - Ores (Coal, Iron… families ORE_*) that land in the inventory, mostly because the sacks are
- *   full: they count when they come in (see onInventory), not again when put into the sacks.
+ * - Mining items that land in the inventory (sacks full, /pickupstash): they count when they come
+ *   in (see onInventory), not again when crafted or put into the sacks. Mito, 2026-11-13.
  * - Frozen corpse loot ("... CORPSE LOOT!" then "REWARDS"): every priced item counts, also those
  *   that land in the inventory. Mining items from the loot also show up in the next sack message,
  *   so they are remembered for a while and taken off that sack message.
@@ -118,6 +118,7 @@ public final class Tracker {
 		lost.clear();
 		usedInSacks.clear();
 		movedFromSacks.clear();
+		counted.clear();
 	}
 
 	public void stop(long now) {
@@ -142,6 +143,7 @@ public final class Tracker {
 		lost.clear();
 		usedInSacks.clear();
 		supercrafted.clear();
+		counted.clear();
 	}
 
 	public void resume(long now) {
@@ -247,8 +249,9 @@ public final class Tracker {
 	/**
 	 * Coins counted from one sack message, given all of its hover texts.
 	 *
-	 * - Items put in that had just left the inventory were put in by hand: not counted. Items
-	 *   from /pickupstash are the exception: they go through the inventory but still count.
+	 * - Items put in that had just left the inventory were put in by hand (or crafted there,
+	 *   Hypixel puts the product straight into the sacks): not counted, they counted when they
+	 *   came into the inventory.
 	 * - Taking items out never counts negative. Items taken out that showed up in the inventory
 	 *   change nothing. Others were used in the sacks themselves (e.g. /craft turns Glacite into
 	 *   Enchanted Glacite in the sacks): their value is taken off what of the same family and a
@@ -313,9 +316,7 @@ public final class Tracker {
 					amount -= useCredit(item.id(), amount);
 					double byHand = fromInventory(item, amount, p);
 					amount -= byHand;
-					double stashed = fromStash(item, byHand);
 					if (menu) amount = 0;
-					amount += stashed;
 					if (amount > 0) in.add(new Part(item, amount));
 				} else if (amount < 0) {
 					double left = toInventory(item.family(), -amount * item.value(), p);
@@ -410,10 +411,6 @@ public final class Tracker {
 	// ---------- inventory ----------
 	/** How long an inventory change is matched with sack messages (they come up to ~30 s late). */
 	public static final long INVENTORY_MS = 60_000;
-	/** After /pickupstash, what comes into the inventory this soon is from the stash. */
-	public static final long STASH_PICKUP_MS = 5_000;
-	/** Stash items still in the inventory are remembered this long. */
-	public static final long STASH_KEEP_MS = 30 * 60_000;
 	// Mining items in the inventory at the last look (item id -> count), null = not known yet.
 	private Map<String, Double> inventory;
 	// Recent inventory changes per item id, kept apart: what came in, and what went out
@@ -421,14 +418,10 @@ public final class Tracker {
 	// whatever order the sack messages come in.
 	private final Map<String, Change> gained = new HashMap<>();
 	private final Map<String, Change> lost = new HashMap<>();
-	// Value per family of items from the stash not yet put into the sacks.
-	private final Map<String, Double> stash = new HashMap<>();
-	private long stashPickupUntil = -1;
-	private long stashSince = -1;
 
 	private record Change(double count, long since) {}
 
-	// ---------- ores in the inventory ----------
+	// ---------- mining items picked up into the inventory ----------
 	// Rules as SkyHanni's OwnInventoryData (github.com/hannibal002/SkyHanni, LGPL-2.1): what comes
 	// into the inventory while a menu is open (or just after), just after a world change, or
 	// right after "Moved … from your Sacks" is not picked up.
@@ -444,7 +437,7 @@ public final class Tracker {
 	// Item name key -> until when it is ignored.
 	private final Map<String, Long> movedFromSacks = new HashMap<>();
 
-	/** True for an ore family (Coal, Iron…): counted when it comes into the inventory. */
+	/** True for an ore family (Coal, Iron…): the "Ore" heading. */
 	public static boolean isOre(String family) {
 		return family != null && family.startsWith("ORE_");
 	}
@@ -476,8 +469,8 @@ public final class Tracker {
 		return item.name() != null && movedFromSacks.containsKey(key(item.name()));
 	}
 
-	/** Ores that came into the inventory: counted like mined, less corpse loot already counted. */
-	private double earnOre(Prices.Item item, double count, long now) {
+	/** Mining items that came into the inventory: counted like mined, less corpse loot already counted. */
+	private double earnInventory(Prices.Item item, double count, long now) {
 		count -= useCredit(item.id(), count);
 		double coins = count * item.value();
 		if (coins <= 0) return 0;
@@ -487,18 +480,42 @@ public final class Tracker {
 		note(cat, row, Breakdown.unit(item.id(), fam), count);
 		noteCoins(cat, row, coins);
 		earn(coins, now);
+		Change c = counted.get(item.id());
+		counted.put(item.id(), new Change((c == null ? 0 : c.count) + count, now));
 		return coins;
 	}
 
-	/** /pickupstash was used: the items it brings into the inventory count when put into the sacks. */
+	// Recently counted inventory gains per item id: a sack message later showing them taken out of
+	// the sacks (a way out of the sacks without a menu or "Moved" message) takes them back off.
+	private final Map<String, Change> counted = new HashMap<>();
+
+	/** Takes back up to {@code count} of an item counted as it came into the inventory. */
+	private void uncount(Prices.Item item, double count) {
+		Change c = counted.get(item.id());
+		if (c == null || count <= 0) return;
+		double n = Math.min(c.count, count);
+		put(counted, item.id(), c.count - n, c.since);
+		double coins = n * item.value();
+		String fam = item.family();
+		String cat = Breakdown.category(fam);
+		String row = Breakdown.rowName(fam);
+		note(cat, row, Breakdown.unit(item.id(), fam), -n);
+		noteCoins(cat, row, -coins);
+		sessionCoins = Math.max(0, sessionCoins - coins);
+		totalCoins = Math.max(0, totalCoins - coins);
+	}
+
+	/**
+	 * /pickupstash was used. Nothing to do: what it brings into the inventory counts as it comes in,
+	 * like everything picked up (kept for the debug log and old replays).
+	 */
 	public void onStashPickup(long now) {
-		stashPickupUntil = now + STASH_PICKUP_MS;
 	}
 
 	/**
 	 * Feed the inventory now and then (item names with counts, the item on the cursor too).
 	 * Pass null when there is no inventory (no player), so the next look starts over.
-	 * Returns the coins counted (ores that came in, see the class comment).
+	 * Returns the coins counted (mining items that came in, see the class comment).
 	 */
 	public double onInventory(List<Map.Entry<String, Integer>> stacks, long now) {
 		if (stacks == null) {
@@ -512,10 +529,6 @@ public final class Tracker {
 			Prices.Item item = p.byName(s.getKey());
 			if (item != null && item.mining()) counts.merge(item.id(), (double) s.getValue(), Double::sum);
 		}
-		if (stashSince >= 0 && now - stashSince > STASH_KEEP_MS) {
-			stash.clear();
-			stashSince = -1;
-		}
 		if (inventory != null) {
 			Map<String, Double> diff = new HashMap<>(counts);
 			for (Map.Entry<String, Double> e : inventory.entrySet()) diff.merge(e.getKey(), -e.getValue(), Double::sum);
@@ -528,7 +541,6 @@ public final class Tracker {
 				double[] io = famInOut.computeIfAbsent(item.family(), (k) -> new double[2]);
 				io[e.getValue() > 0 ? 0 : 1] += Math.abs(e.getValue()) * item.value();
 			}
-			boolean fromStash = now <= stashPickupUntil;
 			boolean busy = inventoryBusy(now);
 			for (Map.Entry<String, Double> e : diff.entrySet()) {
 				Prices.Item item = p.byId(e.getKey());
@@ -539,14 +551,10 @@ public final class Tracker {
 				double side = d > 0 ? io[0] : io[1];
 				double count = Math.abs(d) * (side > 0 ? 1 - crafted / side : 1);
 				if (count < 1e-9) continue;
-				// Ores count as they come in (crafting between their forms nets out above), and
-				// not again when they go into the sacks (the "lost" pool below). Stash ones too.
-				if (d > 0 && isOre(item.family()) && running() && !busy && !movedFromSacks(item, now)) {
-					earned += earnOre(item, count, now);
-				} else if (d > 0 && fromStash && !isOre(item.family())) {
-					stash.merge(item.family(), count * item.value(), Double::sum);
-					stashSince = now;
-					continue;
+				// Mining items count as they come in (crafting between their forms nets out above),
+				// and not again when they go into the sacks (the "lost" pool below). Stash ones too.
+				if (d > 0 && running() && !busy && !movedFromSacks(item, now)) {
+					earned += earnInventory(item, count, now);
 				}
 				Map<String, Change> pool = d > 0 ? gained : lost;
 				Change c = pool.get(e.getKey());
@@ -556,18 +564,6 @@ public final class Tracker {
 		}
 		inventory = counts;
 		return earned;
-	}
-
-	/**
-	 * Of {@code count} items put in by hand, how many are worth stash items of the same family
-	 * (as they are, or crafted however): those still count. The stash value is used up here.
-	 */
-	private double fromStash(Prices.Item item, double count) {
-		double s = stash.getOrDefault(item.family(), 0.0);
-		if (count <= 0 || s <= 0 || item.value() <= 0) return 0;
-		double back = Math.min(count, s / item.value());
-		stash.put(item.family(), s - back * item.value());
-		return back;
 	}
 
 	/**
@@ -613,6 +609,7 @@ public final class Tracker {
 			double used = Math.min(value, c.count * item.value());
 			value -= used;
 			put(gained, e.getKey(), c.count - used / item.value(), c.since);
+			uncount(item, used / item.value());
 			if (value <= 0) return 0;
 		}
 		return value;
@@ -625,6 +622,7 @@ public final class Tracker {
 
 	private void dropOldInventoryChanges(long now) {
 		gained.values().removeIf((c) -> c.since < now - INVENTORY_MS);
+		counted.values().removeIf((c) -> c.since < now - INVENTORY_MS);
 		lost.values().removeIf((c) -> c.since < now - INVENTORY_MS);
 		for (List<Used> list : usedInSacks.values()) list.removeIf((u) -> u.since < now - INVENTORY_MS);
 	}

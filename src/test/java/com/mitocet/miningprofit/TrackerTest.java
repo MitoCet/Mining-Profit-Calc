@@ -183,9 +183,11 @@ class TrackerTest {
 		Tracker t = running();
 		t.onInventory(inv(), 0);
 		t.onChatLine("You picked up 2,000 items from your material stash!", 1000);
-		t.onInventory(inv("Glacite", 2000), 1500);
+		// Counted as it comes into the inventory, not again when put into the sacks.
+		assertEquals(2000 * 10, t.onInventory(inv("Glacite", 2000), 1500), 1e-9);
 		t.onInventory(inv(), 8000);
-		assertEquals(2000 * 10, t.onSackMessage(List.of("  +2,000 Glacite (Glacite Sack)"), 20_000), 1e-9);
+		assertEquals(0, t.onSackMessage(List.of("  +2,000 Glacite (Glacite Sack)"), 20_000), 1e-9);
+		assertEquals(2000 * 10, t.sessionCoins, 1e-9);
 	}
 
 	@Test
@@ -196,7 +198,8 @@ class TrackerTest {
 		t.onInventory(inv("Glacite", 1600), 1500);
 		t.onInventory(inv("Enchanted Glacite", 10), 30_000);
 		t.onInventory(inv(), 40_000);
-		assertEquals(10 * 1600, t.onSackMessage(List.of("  +10 Enchanted Glacite (Glacite Sack)"), 50_000), 1e-9);
+		assertEquals(0, t.onSackMessage(List.of("  +10 Enchanted Glacite (Glacite Sack)"), 50_000), 1e-9);
+		assertEquals(10 * 1600, t.sessionCoins, 1e-9);
 	}
 
 	@Test
@@ -205,25 +208,26 @@ class TrackerTest {
 		t.onInventory(inv(), 0);
 		t.onStashPickup(1000);
 		t.onInventory(inv("Glacite", 1600), 1500);
-		// Glacite goes into a crafting grid, later the Enchanted Glacite comes out.
+		// Glacite goes into a crafting grid (a menu), later the Enchanted Glacite comes out.
+		t.onMenu(true, 19_000);
 		t.onInventory(inv(), 20_000);
 		t.onInventory(inv("Enchanted Glacite", 10), 25_000);
+		t.onMenu(false, 26_000);
 		t.onInventory(inv(), 30_000);
-		assertEquals(10 * 1600, t.onSackMessage(List.of("  +10 Enchanted Glacite (Glacite Sack)"), 40_000), 1e-9);
-		// Used up: Glacite put in by hand afterwards does not count.
-		t.onInventory(inv("Glacite", 100), 41_000);
-		t.onInventory(inv(), 42_000);
-		assertEquals(0, t.onSackMessage(List.of("  +100 Glacite (Glacite Sack)"), 50_000), 1e-9);
+		assertEquals(0, t.onSackMessage(List.of("  +10 Enchanted Glacite (Glacite Sack)"), 40_000), 1e-9);
+		assertEquals(10 * 1600, t.sessionCoins, 1e-9);
 	}
 
 	@Test
-	void pickupAfterStashWindowIsNotStash() {
+	void takenOutOfTheSacksWithoutAMenuIsTakenBack() {
 		Tracker t = running();
 		t.onInventory(inv(), 0);
-		t.onStashPickup(1000);
-		t.onInventory(inv("Glacite", 500), 1000 + Tracker.STASH_PICKUP_MS + 1);
-		t.onInventory(inv(), 10_000);
-		assertEquals(0, t.onSackMessage(List.of("  +500 Glacite (Glacite Sack)"), 20_000), 1e-9);
+		// Came into the inventory with no menu and no "Moved" message: counted for now…
+		assertEquals(500 * 10, t.onInventory(inv("Glacite", 500), 1000), 1e-9);
+		// …until the sack message shows it came out of the sacks.
+		assertEquals(0, t.onSackMessage(List.of("  -500 Glacite (Glacite Sack)"), 20_000), 1e-9);
+		assertEquals(0, t.sessionCoins, 1e-9);
+		assertTrue(t.sessionBreakdown.rows(Breakdown.OTHER).isEmpty() || t.sessionBreakdown.total(Breakdown.OTHER) < 1e-9);
 	}
 
 	@Test
@@ -431,10 +435,12 @@ class TrackerTest {
 		Tracker t = running();
 		t.onInventory(List.of(), 0);
 		t.onStashPickup(1000);
-		t.onInventory(List.of(Map.entry("Tungsten", 100)), 1500);
+		assertEquals(100 * 100, t.onInventory(List.of(Map.entry("Tungsten", 100)), 1500), 1e-9);
 		t.onSackMenu(true, 2000);
+		t.onMenu(true, 2000);
 		t.onInventory(List.of(), 2500);
-		assertEquals(100 * 100, t.onSackMessage(List.of("  +100 Tungsten (Mining Sack)"), 3000), 1e-9);
+		assertEquals(0, t.onSackMessage(List.of("  +100 Tungsten (Mining Sack)"), 3000), 1e-9);
+		assertEquals(100 * 100, t.sessionCoins, 1e-9);
 	}
 
 	private static void corpse(Tracker t, String type, long now) {
