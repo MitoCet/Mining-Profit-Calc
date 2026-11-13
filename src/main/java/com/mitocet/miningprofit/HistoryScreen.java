@@ -32,6 +32,7 @@ public final class HistoryScreen extends Screen {
 	private Button fixButton;
 	private Button checkButton;
 	private Button deleteButton;
+	private Button autoFixButton;
 
 	// Layout, set in init().
 	private int listX;
@@ -40,6 +41,8 @@ public final class HistoryScreen extends Screen {
 	private int detailW;
 	private int top;
 	private int bottom;
+	/** The list ends higher: the Oto düzelt button sits under it. */
+	private int listBottom;
 
 	public HistoryScreen(MiningProfitClient mod) {
 		super(Component.literal("Kazanç geçmişi"));
@@ -60,7 +63,12 @@ public final class HistoryScreen extends Screen {
 		detailW = width - detailX - 10;
 		top = 32;
 		bottom = height - 32;
+		listBottom = height - 56;
 		int y = height - 26;
+		autoFixButton = addRenderableWidget(Button.builder(autoFixText(), (b) -> {
+			mod.menuToggleAutoFix();
+			b.setMessage(autoFixText());
+		}).pos(listX, height - 50).size(listW, 20).build());
 		addRenderableWidget(Button.builder(Component.literal("§cHepsini sil (sıfırla)"),
 			(b) -> Minecraft.getInstance().gui.setScreen(confirmAllScreen())).pos(listX, y).size(listW, 20).build());
 		int gap = 4;
@@ -77,6 +85,10 @@ public final class HistoryScreen extends Screen {
 		}).pos(detailX + 2 * (bw + gap), y).size(bw, 20).build());
 		addRenderableWidget(Button.builder(Component.literal("Kapat"), (b) -> Minecraft.getInstance().gui.setScreen(null))
 			.pos(detailX + 3 * (bw + gap), y).size(detailW - 3 * (bw + gap), 20).build());
+	}
+
+	private Component autoFixText() {
+		return Component.literal("Oto düzelt: " + (mod.config.autoFix ? "§aAçık" : "Kapalı"));
 	}
 
 	private Screen confirmAllScreen() {
@@ -147,8 +159,8 @@ public final class HistoryScreen extends Screen {
 			+ " · " + mod.history().sessions.size() + " session"), width / 2, 19, History.MUTED);
 
 		// List.
-		box(g, listX, top, listW, bottom - top);
-		int visible = (bottom - top - 4) / ROW;
+		box(g, listX, top, listW, listBottom - top);
+		int visible = (listBottom - top - 4) / ROW;
 		listScroll = Math.max(0, Math.min(listScroll, Math.max(0, rows.size() - visible)));
 		int first = (int) listScroll;
 		if (rows.isEmpty()) g.text(font, "Kayıtlı session yok.", listX + 6, top + 6, History.MUTED, true);
@@ -210,7 +222,7 @@ public final class HistoryScreen extends Screen {
 		if (super.mouseClicked(e, doubleClick)) return true;
 		double mx = e.x();
 		double my = e.y();
-		if (mx >= listX && mx < listX + listW && my >= top + 2 && my < bottom) {
+		if (mx >= listX && mx < listX + listW && my >= top + 2 && my < listBottom) {
 			int i = (int) listScroll + (int) ((my - top - 2) / ROW);
 			List<History.Session> rows = entries(System.currentTimeMillis());
 			if (i >= 0 && i < rows.size()) {

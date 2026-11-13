@@ -46,10 +46,10 @@ public final class SackCheck {
 	public long endedId;
 	/** The last result reported, so the same one is not warned about again. */
 	public String lastReport;
-	/** Items the last check found missing (item id -> count), for /kazanc duzelt. */
+	/** Items the last check found missing (item id -> count), for Düzelt in /kazanc gecmis. */
 	public Map<String, Long> missing = new HashMap<>();
 
-	/** The missing items belong to a session that has ended: /kazanc duzelt adds them only to Toplam. */
+	/** The missing items belong to a session that has ended: Düzelt adds them to that session and Toplam. */
 	public boolean missingEnded;
 	/**
 	 * The game was closed while a session ran: that session was ended and the base and what was
@@ -74,7 +74,7 @@ public final class SackCheck {
 
 	/**
 	 * After the previous game's session was checked: the API counts now become the base of the
-	 * new session. What the check found missing stays for /kazanc duzelt (it belongs to the ended
+	 * new session. What the check found missing stays for Düzelt in /kazanc gecmis (it belongs to the ended
 	 * session).
 	 */
 	public void rebase(Map<String, Long> counts, long now) {
