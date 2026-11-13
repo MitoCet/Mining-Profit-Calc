@@ -709,8 +709,12 @@ public final class MiningProfitClient implements ClientModInitializer {
 	 * before). The ended session's items waiting in the sack check follow its saved check.
 	 */
 	private void renetChecks() {
-		if (config.liveCheck != null) config.liveCheck.renet(prices);
+		if (config.liveCheck != null) {
+			config.liveCheck.renet(prices);
+			config.liveCheck.fillFamilies(prices);
+		}
 		for (History.Session rec : config.history.sessions) {
+			if (rec.check != null) rec.check.fillFamilies(prices);
 			if (rec.check == null || !rec.check.renet(prices)) continue;
 			if (config.sackCheck.endedId != 0 && rec.start == config.sackCheck.endedId && rec.check.missing != null) {
 				config.sackCheck.missing = new java.util.HashMap<>(rec.check.missing);

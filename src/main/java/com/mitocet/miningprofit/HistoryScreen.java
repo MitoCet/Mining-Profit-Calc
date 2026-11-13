@@ -186,6 +186,7 @@ public final class HistoryScreen extends Screen {
 		if (sel == null) return;
 		String head = live ? "Şu anki session · " + Format.time(sel.ms)
 			: History.date(sel.start) + " – " + History.clock(sel.end) + " · " + Format.time(sel.ms);
+		if (sel.check != null) sel.check.fillFamilies(mod.prices());
 		List<History.Line> lines = History.lines(sel, head, mod.config.keyCost);
 		int fits = (bottom - top - 8) / LINE;
 		detailScroll = Math.max(0, Math.min(detailScroll, Math.max(0, lines.size() - fits)));
