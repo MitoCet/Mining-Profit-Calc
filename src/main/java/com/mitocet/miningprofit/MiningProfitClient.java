@@ -616,6 +616,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		}
 		if (r.diffs().isEmpty()) {
 			config.sackCheck.lastReport = null;
+			tracker.clearApiWarnings();
 			save();
 			if (!auto) say(src, who + "§aSack sayıları tutuyor§r: API ile modun okuduğu aynı (" + r.matched() + " item). Kazanç: " + Format.coins(modCoins) + ".");
 			return;
@@ -658,7 +659,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (canFix) src.sendFeedback(fixHint());
 		say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Sunucu ya da Mineshaft değiştirince son sack mesajı gelmeyebilir; kalıcı fark çoğu zaman budur (ya da mesaj iki kez okunmuştur, /kazanc kayit). Envanterden sack'e koyduğun ya da sack'ten sattığın itemler de API farkına girer.");
 		long before = tracker.warningCount;
-		tracker.warn("API sack sayısıyla " + r.diffs().size() + " itemde fark: mod " + Format.coins(modCoins)
+		// Only the newest difference stays in the warnings.
+		tracker.clearApiWarnings();
+		tracker.warn(Tracker.API_WARNING + r.diffs().size() + " itemde fark: mod " + Format.coins(modCoins)
 			+ ", gerçek ~" + Format.coins(modCoins + missingCoins));
 		logWarnings(before, now);
 	}
@@ -690,6 +693,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			coins += e.getValue() * item.value();
 			parts.add(signed(e.getValue()) + " " + (item.name() != null ? item.name() : e.getKey()));
 		}
+		if (coins > 0) tracker.clearApiWarnings();
 		if (config.liveCheck != null) {
 			config.liveCheck.fixedCoins += coins;
 			config.liveCheck.missing = new java.util.HashMap<>();
@@ -724,6 +728,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			c.fixedCoins += coins;
 			c.missing = new java.util.HashMap<>();
 		}
+		if (coins > 0) tracker.clearApiWarnings();
 		// The same items wait in the sack check too: added now, so not again.
 		if (rec.start == config.sackCheck.endedId) {
 			config.sackCheck.takeMissing();

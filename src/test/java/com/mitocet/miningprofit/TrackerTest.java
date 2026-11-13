@@ -30,6 +30,16 @@ class TrackerTest {
 	}
 
 	@Test
+	void settledApiDifferenceDropsOnlyItsWarning() {
+		Tracker t = running();
+		t.warn("Sack mesajı okunamadı");
+		t.warn(Tracker.API_WARNING + "15 itemde fark: mod 4,92M, gerçek ~6,22M");
+		assertTrue(t.clearApiWarnings());
+		assertEquals(List.of("Sack mesajı okunamadı"), t.warnings);
+		assertFalse(t.clearApiWarnings());
+	}
+
+	@Test
 	void endClearsSessionKeepsTotal() {
 		Tracker t = running();
 		t.onSackMessage(List.of("  +1,000 Tungsten (Mining Sack)"), 1000);

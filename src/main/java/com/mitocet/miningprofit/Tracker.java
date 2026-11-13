@@ -96,6 +96,14 @@ public final class Tracker {
 		warnings.add(text);
 	}
 
+	/** Start of the warning an API sack check with differences gives. */
+	public static final String API_WARNING = "API sack sayısıyla ";
+
+	/** The API difference is settled (fixed, or a new check matches): its warning goes away. */
+	public boolean clearApiWarnings() {
+		return warnings.removeIf((w) -> w.startsWith(API_WARNING));
+	}
+
 	public Tracker(Supplier<Prices> prices) {
 		this.prices = prices;
 	}
