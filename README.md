@@ -17,11 +17,12 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 | `/kazanc help`, `/kazanc yardim` | Bütün komutları Türkçe açıklamalarıyla listeler; komutun üstüne gelince ayrıntısı çıkar, tıklayınca komut sohbete yazılır |
 | `/kazanc baslat` | Yeni session başlatır (session sıfırlanır) |
 | `/kazanc dur` | Durdurur ve özeti sohbete yazar |
-| `/kazanc bitir` | Session'ı bitirir: durdurur, özeti sohbete yazar ve session'ı sıfırlar (Toplam'a dokunmaz). Session açıkken oyunu kapatınca (ya da oyun çökünce) aynısı kendiliğinden olur |
+| `/kazanc bitir` | Session'ı bitirir: durdurur, özeti sohbete yazar, geçmişe kaydeder ve session'ı sıfırlar. Session açıkken oyunu kapatınca (ya da oyun çökünce) aynısı kendiliğinden olur |
 | `/kazanc devam` | Durdurulan session'a devam eder |
 | `/kazanc` | Session ve toplam özeti |
 | `/kazanc sekme` | Kutuda Session / Toplam arasında geçiş |
-| `/kazanc sifirla` | Toplam kazancı sıfırlar |
+| `/kazanc gecmis` | Session geçmişi menüsü (aşağıya bak) |
+| `/kazanc sifirla` | Onay sorup bütün kayıtlı sessionları siler, Toplam sıfırlanır (süren session kalır) |
 | `/kazanc goster`, `/kazanc gizle` | Session durmuşken de kutuyu gösterir / gizler (çalışırken kutu hep görünür) |
 | `/kazanc buyuk`, `/kazanc kucuk` | Kutuyu büyük (başlıklara ayrılmış kazanç) ya da küçük (kazanç, saatlik, süre) yapar |
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır; bitince "Fiyatlar yenilendi" (item sayısı, verinin yaşı) ya da hata yazar |
@@ -37,6 +38,14 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
 
 Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril, Titanium, Tungsten, Umber), Corpse Loot, Fiesta (Glossy Gemstone, Refined Mineral), Ore (Coal, Iron, Gold, Diamond, Lapis, Redstone, Emerald, Quartz, Obsidian), Diğer (Glacite, Hard Stone, Suspicious Scrap). En çok kazandıran üstte, kazancı olmayan başlık görünmez. Başlığa tıklayınca açılır ve neyden kaç tane geldiği yazar (ör. `Ruby: 1.200 Rough, 15 Flawed · 45,0k`). Session sekmesi bu session'ı, Toplam sekmesi tüm zamanları gösterir. Açık başlıklar ve kutu boyu oyun kapanınca da hatırlanır.
+
+### Session geçmişi (`/kazanc gecmis`)
+
+Biten her session (`/kazanc bitir` ya da oyunu kapatınca) kaydedilir; kazancı olmayan session kaydedilmez. **Toplam = kayıtlı sessionlar + süren session.** Menüde solda sessionlar (en yeni üstte, süren session en üstte; tarih, süre, kazanç, saatlik, sack kontrolü durumu), sağda seçilenin ayrıntısı: neyden ne kadar kazanıldığı ve API sack kontrolü (mod ne saydı, API'ye göre gerçek, fark item item). Her session'ın son kontrol sonucu onunla birlikte saklanır.
+
+- **Düzelt**: kontrolün bulduğu eksikleri (pozitif fark) o session'a ve Toplam'a ekler (eski sessionlarda da çalışır).
+- **Kontrol et**: süren session'ı ya da (yeni session başlamadan) son biten session'ı API ile tekrar karşılaştırır; Hypixel eski sack sayılarını vermediği için daha eskiler tekrar kontrol edilemez, kayıtlı sonuçları görünür.
+- **Sil**: onay sorar, session'ı siler ve Toplam'dan çıkarır. **Hepsini sil** = `/kazanc sifirla`.
 
 ## Neyi sayar
 
@@ -74,8 +83,8 @@ Modun sack mesajlarını doğru okuyup okumadığını Hypixel API'deki gerçek 
 - `/kazanc baslat`: API'den başlangıç sack sayıları alınır.
 - O andan sonra mining itemlerinin her sack mesajı satırı (+ ve −, kazanç kurallarından bağımsız) toplanır, session dursa bile.
 - `/kazanc bitir` ya da `/kazanc kontrol`: API'deki değişim (şimdi − başlangıç) modun okuduğuyla item item karşılaştırılır. Tutmayan itemler sohbete yazılır (`Tungsten: gerçek +1.000, mod +500 (fark +500, +53.3k)`), altında "Mod: X → API'ye göre gerçek: ~Y" satırı çıkar ve kutuda ⚠ uyarısı (`/kazanc uyari`) verilir. Aynı fark tekrar çıkarsa tek satır yazılır, yeni uyarı eklenmez. `/kazanc bitir`'den sonraki kontroller bitmiş session'ın kazancını kullanır. Corpse loot'undan sayılan mining itemleri, sack mesajı gelmese de okunmuş sayılır.
-- Oyun kapanınca: açık session bitirilir, sack kontrolü için gereken her şey ayar dosyasında kalır. Sonraki açışta SkyBlock'a ilk girince (lobide değil) özet sohbete yazılır ve API anahtarı varsa önceki session'ın sack kontrolü kendiliğinden yapılır (Hypixel henüz güncellememişse 3 dk arayla 3 kez daha denenir), sonra yeni başlangıç sayıları alınır. Yeni session kendiliğinden başlamaz, `/kazanc baslat` gerekir. Önceki session'da eksik çıkanlar `/kazanc duzelt` ile sadece Toplam'a eklenir.
-- `/kazanc duzelt`: kontrolde eksik çıkan itemler (pozitif fark) kazanca eklenir; session bittiyse sadece Toplam'a. Mineshaft'tan ya da sunucudan son sack mesajı gelmeden çıkınca Hypixel o mesajı göndermiyor, bu komut onu telafi eder. `/kazanc duzelt otomatik`: eksikler kendiliğinden eklenir, sunucu değişiminden, `/kazanc bitir`'den ve kısa kesilmiş bir sack listesinden ~3 dk sonra kontrol kendiliğinden yapılır. Envanterden sack'e elle konan itemler de fark olarak görünür; otomatikte onlar da eklenir. `/kazanc duzelt elle` varsayılana döner.
+- Oyun kapanınca: açık session bitirilir, sack kontrolü için gereken her şey ayar dosyasında kalır. Sonraki açışta SkyBlock'a ilk girince (lobide değil) özet sohbete yazılır ve API anahtarı varsa önceki session'ın sack kontrolü kendiliğinden yapılır (Hypixel henüz güncellememişse 3 dk arayla 3 kez daha denenir), sonra yeni başlangıç sayıları alınır. Yeni session kendiliğinden başlamaz, `/kazanc baslat` gerekir. Önceki session'da eksik çıkanlar `/kazanc duzelt` ile o session'a ve Toplam'a eklenir.
+- `/kazanc duzelt`: kontrolde eksik çıkan itemler (pozitif fark) kazanca eklenir; session bittiyse geçmişteki o session'a ve Toplam'a. Mineshaft'tan ya da sunucudan son sack mesajı gelmeden çıkınca Hypixel o mesajı göndermiyor, bu komut onu telafi eder. `/kazanc duzelt otomatik`: eksikler kendiliğinden eklenir, sunucu değişiminden, `/kazanc bitir`'den ve kısa kesilmiş bir sack listesinden ~3 dk sonra kontrol kendiliğinden yapılır. Envanterden sack'e elle konan itemler de fark olarak görünür; otomatikte onlar da eklenir. `/kazanc duzelt elle` varsayılana döner.
 - Hypixel sack verisini birkaç dakika geç kaydeder. API hiç değişmemişse "henüz güncellemedi" der; 2-3 dakika sonra `/kazanc kontrol` ile tekrar bakılır. Başlangıç sayısı da eski olabileceği için tek seferlik bir fark gecikmeden kaynaklanabilir; tekrar bakınca da kalan fark, kaçan ya da iki kez okunan mesaj demektir.
 - Sack doluyken envantere düşenler ne sack'e ne mesaja girer, karşılaştırmayı bozmaz. Mesajsız sack değişimleri (ör. Bazaar'a sack'ten satış, mesaj gelmiyorsa) fark olarak görünür.
 

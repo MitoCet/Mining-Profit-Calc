@@ -42,6 +42,8 @@ public final class SackCheck {
 	public Map<String, Long> corpse = new HashMap<>();
 	/** Earnings of the session that /kazanc bitir ended, for /kazanc kontrol after it (null = none). */
 	public Double endedCoins;
+	/** Start (id in History) of the ended session the check data belongs to; 0 = none or not saved. */
+	public long endedId;
 	/** The last result reported, so the same one is not warned about again. */
 	public String lastReport;
 	/** Items the last check found missing (item id -> count), for /kazanc duzelt. */
@@ -79,12 +81,14 @@ public final class SackCheck {
 		Map<String, Long> keepMissing = missing;
 		boolean keepEnded = missingEnded;
 		Double keepCoins = endedCoins;
+		long keepId = endedId;
 		String keepReport = lastReport;
 		setBase(counts, now);
 		missing = keepMissing == null ? new HashMap<>() : keepMissing;
 		missingEnded = keepEnded;
 		missingBeforeBase = true;
 		endedCoins = keepCoins;
+		endedId = keepId;
 		lastReport = keepReport;
 	}
 
@@ -112,6 +116,7 @@ public final class SackCheck {
 		missingBeforeBase = false;
 		previousPending = false;
 		endedCoins = null;
+		endedId = 0;
 		lastReport = null;
 	}
 
