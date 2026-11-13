@@ -19,7 +19,8 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 | `/kazanc dur` | Durdurur ve özeti sohbete yazar |
 | `/kazanc bitir` | Session'ı bitirir: durdurur, özeti sohbete yazar, geçmişe kaydeder ve session'ı sıfırlar. Session açıkken oyunu kapatınca (ya da oyun çökünce) aynısı kendiliğinden olur |
 | `/kazanc devam` | Durdurulan session'a devam eder |
-| `/kazanc` | Session ve toplam özeti |
+| `/kazanc` | **Ayar menüsü**: her komut ve ayar bir buton (aşağıya bak) |
+| `/kazanc ozet` | Session ve toplam özetini sohbete yazar |
 | `/kazanc sekme` | Kutuda Session / Toplam arasında geçiş |
 | `/kazanc gecmis` | Session geçmişi menüsü (aşağıya bak) |
 | `/kazanc sifirla` | Onay sorup bütün kayıtlı sessionları siler, Toplam sıfırlanır (süren session kalır) |
@@ -37,6 +38,12 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle basılı tutup sürükleyebilir, sağ alt köşesinden çekerek büyütüp küçültebilir, üstteki **Session** / **Toplam** yazısına tıklayarak sekme değiştirebilirsin. Sağ üstteki **[+]** / **[-]** kutuyu büyütür ya da küçültür.
 
 Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril, Titanium, Tungsten, Umber), Corpse Loot, Fiesta (Glossy Gemstone, Refined Mineral), Ore (Coal, Iron, Gold, Diamond, Lapis, Redstone, Emerald, Quartz, Obsidian), Diğer (Glacite, Hard Stone, Suspicious Scrap). En çok kazandıran üstte, kazancı olmayan başlık görünmez. Başlığa tıklayınca açılır ve neyden kaç tane geldiği yazar (ör. `Ruby: 1.200 Rough, 15 Flawed · 45,0k`). Session sekmesi bu session'ı, Toplam sekmesi tüm zamanları gösterir. Açık başlıklar ve kutu boyu oyun kapanınca da hatırlanır.
+
+### Ayar menüsü (`/kazanc`)
+
+`/kazanc` yazınca (ya da atadığın tuşa basınca) bir menü açılır: üstte Session ve Toplam özeti, altında her komutun ve ayarın butonu. Session: Başlat, Durdur/Devam, Bitir, Geçmiş, Sack kontrolü, Uyarılar, Özeti sohbete yaz. Kutu ve sayım: kutu boyu, sekme, durmuşken kutu, Anahtarlı corpse, Oto düzelt, Boşta durma (−/+ 30 sn). API ve diğer: API anahtarı kutusu (yapıştır, Kaydet / Sil), Fiyatları yenile, Güncelle, Güncelleme haberi, Hata kaydı, Yardım; en altta Hepsini sil ve Kapat. Butonlar aynı `/kazanc` komutlarını çalıştırır, cevapları sohbete yazılır; fareyi butonun üstünde tutunca ne yaptığı çıkar. Komutlar da aynen çalışır.
+
+Kısayol tuşu: Ayarlar → Kontroller → Tuş atamaları → Çeşitli → **Kazanç menüsü** (varsayılan atanmamış).
 
 ### Session geçmişi (`/kazanc gecmis`)
 

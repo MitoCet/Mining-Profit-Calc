@@ -95,7 +95,7 @@ public final class HistoryScreen extends Screen {
 	}
 
 	private Component keyCostText() {
-		return Component.literal("Anahtarlı corpse: " + (mod.config.keyCost ? "§aSayılıyor" : "Sayılmıyor"));
+		return Component.literal("Anahtarlı corpse: " + (mod.config.keyCost ? "§aAçık" : "Kapalı"));
 	}
 
 	private Component autoFixText() {
