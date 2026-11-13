@@ -17,6 +17,12 @@ public final class Config {
 	public long totalMs;
 	public double sessionCoins;
 	public long sessionMs;
+	/** When the current session started (ms). */
+	public long sessionStart;
+	/** Every ended session (/kazanc gecmis); Toplam is their sum plus the current session. */
+	public History history;
+	/** The last API sack check of the session running now; saved with it when it ends. */
+	public History.Check liveCheck;
 	public int x = 4;
 	public int y = 40;
 	public float scale = 1f;

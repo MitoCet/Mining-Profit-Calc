@@ -45,6 +45,41 @@ public final class Breakdown {
 		keyCoins = 0;
 	}
 
+	/** A separate copy (a saved session keeps what it earned from, apart from the live one). */
+	public Breakdown copy() {
+		Breakdown c = new Breakdown();
+		c.add(this, 1);
+		return c;
+	}
+
+	/** Takes what {@code o} earned from out of this one (a deleted session leaves Toplam). Never below 0. */
+	public void subtract(Breakdown o) {
+		if (o != null) add(o, -1);
+	}
+
+	private void add(Breakdown o, int sign) {
+		for (Map.Entry<String, Map<String, Row>> c : o.cats.entrySet()) {
+			for (Map.Entry<String, Row> r : c.getValue().entrySet()) {
+				Row to = row(c.getKey(), r.getKey());
+				to.coins = Math.max(0, to.coins + sign * r.getValue().coins);
+				r.getValue().counts.forEach((u, n) -> {
+					double v = to.counts.getOrDefault(u, 0.0) + sign * n;
+					if (v > 1e-9) to.counts.put(u, v);
+					else to.counts.remove(u);
+				});
+				if (to.coins <= 1e-9 && to.counts.isEmpty()) cats.get(c.getKey()).remove(r.getKey());
+			}
+			if (cats.containsKey(c.getKey()) && cats.get(c.getKey()).isEmpty()) cats.remove(c.getKey());
+		}
+		if (keys == null) keys = new HashMap<>();
+		if (o.keys != null) o.keys.forEach((k, n) -> {
+			double v = keys.getOrDefault(k, 0.0) + sign * n;
+			if (v > 1e-9) keys.put(k, v);
+			else keys.remove(k);
+		});
+		keyCoins = Math.max(0, keyCoins + sign * o.keyCoins);
+	}
+
 	public void addKey(String name, int n, double coins) {
 		if (keys == null) keys = new HashMap<>();
 		keys.merge(name, (double) n, Double::sum);

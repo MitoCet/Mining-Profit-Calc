@@ -52,6 +52,8 @@ public final class Tracker {
 	// The current session.
 	public double sessionCoins;
 	public long sessionMs;
+	/** When the current session started (ms; 0 = unknown). */
+	public long sessionStart;
 	// What the coins came from, for the big box (session and all time).
 	public Breakdown sessionBreakdown = new Breakdown();
 	public Breakdown totalBreakdown = new Breakdown();
@@ -111,6 +113,7 @@ public final class Tracker {
 		sessionCoins = 0;
 		sessionMs = 0;
 		sessionBreakdown.clear();
+		sessionStart = now;
 		runningSince = now;
 		credits.clear();
 		corpseItems.clear();
@@ -132,6 +135,7 @@ public final class Tracker {
 	/** Ends the session: stops it and clears it to zero. The all-time total keeps what it earned. */
 	public void end(long now) {
 		stop(now);
+		sessionStart = 0;
 		warnings.clear();
 		lastSackKey = null;
 		sessionCoins = 0;
@@ -152,14 +156,56 @@ public final class Tracker {
 		lastActive = now;
 	}
 
+	/**
+	 * Deletes every saved session: Toplam becomes just the session running now (Toplam is the
+	 * sum of the saved sessions and the current one).
+	 */
 	public void resetTotal(long now) {
 		if (running()) {
 			sessionMs += segmentMs(now);
 			runningSince = now;
 		}
-		totalCoins = 0;
-		totalMs = 0;
-		totalBreakdown.clear();
+		totalCoins = sessionCoins;
+		totalMs = sessionMs;
+		totalBreakdown = sessionBreakdown.copy();
+	}
+
+	/**
+	 * The session as it is now, to save when it ends (before {@link #end}). The start is
+	 * guessed from the counted time when it is unknown (a session from before this was kept).
+	 */
+	public History.Session record(long now) {
+		History.Session r = new History.Session();
+		r.ms = sessionMs(now);
+		r.end = now;
+		r.start = sessionStart > 0 ? sessionStart : now - r.ms;
+		r.coins = sessionCoins;
+		r.breakdown = sessionBreakdown.copy();
+		return r;
+	}
+
+	/** A saved session was deleted: what it earned leaves Toplam. */
+	public void remove(History.Session r) {
+		totalCoins = Math.max(0, totalCoins - r.coins);
+		totalMs = Math.max(0, totalMs - r.ms);
+		totalBreakdown.subtract(r.breakdown);
+	}
+
+	/** Adds items the API check found missing to a saved (ended) session and to Toplam. */
+	public double addFixTo(History.Session r, Prices.Item item, double count, double value) {
+		double coins = count * value;
+		if (coins <= 0) return 0;
+		String fam = item.family();
+		String cat = Breakdown.category(fam);
+		String row = Breakdown.rowName(fam);
+		String unit = Breakdown.unit(item.id(), fam);
+		r.breakdown.addCount(cat, row, unit, count);
+		r.breakdown.addCoins(cat, row, coins);
+		r.coins += coins;
+		totalBreakdown.addCount(cat, row, unit, count);
+		totalBreakdown.addCoins(cat, row, coins);
+		totalCoins += coins;
+		return coins;
 	}
 
 	public long sessionMs(long now) {

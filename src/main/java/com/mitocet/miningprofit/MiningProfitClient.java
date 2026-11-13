@@ -104,6 +104,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 		tracker.totalMs = config.totalMs;
 		tracker.sessionCoins = config.sessionCoins;
 		tracker.sessionMs = config.sessionMs;
+		tracker.sessionStart = config.sessionStart;
+		if (config.history == null) config.history = new History();
+		if (config.history.sessions == null) config.history.sessions = new ArrayList<>();
 		if (config.sessionBreakdown != null) tracker.sessionBreakdown = config.sessionBreakdown;
 		if (config.totalBreakdown != null) tracker.totalBreakdown = config.totalBreakdown;
 		if (config.open == null) config.open = new java.util.HashSet<>();
@@ -182,6 +185,12 @@ public final class MiningProfitClient implements ClientModInitializer {
 			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
 			if (ticks % 10 == 0) readInventory(client);
 			autoCheckTick(client);
+			// A screen opened from a chat command: after the chat has closed.
+			if (pendingScreen != null) {
+				java.util.function.Supplier<net.minecraft.client.gui.screens.Screen> open = pendingScreen;
+				pendingScreen = null;
+				client.gui.setScreen(open.get());
+			}
 			// Everything the mod says on joining waits until the player is in SkyBlock (Mito), not a lobby.
 			if (ticks % 20 == 0) skyBlockTick(client);
 			if (inSkyBlock && client.player != null) {
@@ -203,10 +212,12 @@ public final class MiningProfitClient implements ClientModInitializer {
 				.then(ClientCommands.literal("baslat").executes((c) -> {
 					long now = System.currentTimeMillis();
 					tracker.start(now);
+					config.liveCheck = null;
 					// The previous game's session is still being checked: that check gives the new base.
 					boolean prevCheck = config.sackCheck.previousPending && hasKey();
 					if (!prevCheck) {
 						config.sackCheck.endedCoins = null;
+						config.sackCheck.endedId = 0;
 						config.sackCheck.previousPending = false;
 					}
 					logControl("start", now);
@@ -228,14 +239,15 @@ public final class MiningProfitClient implements ClientModInitializer {
 					long now = System.currentTimeMillis();
 					long ms = tracker.sessionMs(now);
 					double coins = Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost);
-					tracker.end(now);
+					boolean saved = endSession(now) != null;
 					// /kazanc kontrol after this still compares the session that just ended.
 					config.sackCheck.endedCoins = coins;
 					config.sackCheck.previousPending = false;
 					logControl("end", now);
 					save();
 					say(c, "Session bitti: " + Format.coins(coins) + " (" + Format.time(ms) + ", "
-						+ Format.coins(Tracker.perHour(coins, ms)) + "/sa). Session sıfırlandı, Toplam'a eklendi."
+						+ Format.coins(Tracker.perHour(coins, ms)) + "/sa). "
+						+ (saved ? "Geçmişe kaydedildi (/kazanc gecmis)." : "Kazanç olmadığı için kaydedilmedi.")
 						+ " Yeni session için /kazanc baslat.");
 					if (hasKey() && config.sackCheck.hasBase()) {
 						check(c.getSource(), false);
@@ -255,9 +267,15 @@ public final class MiningProfitClient implements ClientModInitializer {
 					return say(c, "Session devam ediyor.");
 				}))
 				.then(ClientCommands.literal("sifirla").executes((c) -> {
-					tracker.resetTotal(System.currentTimeMillis());
-					save();
-					return say(c, "Toplam kazanç sıfırlandı (session'a dokunulmadı).");
+					// Asks first, in the history menu (Mito: deleting all needs a yes).
+					lastSrc = c.getSource();
+					pendingScreen = () -> HistoryScreen.confirmAll(this);
+					return Command.SINGLE_SUCCESS;
+				}))
+				.then(ClientCommands.literal("gecmis").executes((c) -> {
+					lastSrc = c.getSource();
+					pendingScreen = () -> new HistoryScreen(this);
+					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("sekme").executes((c) -> {
 					config.sessionTab = !config.sessionTab;
@@ -603,6 +621,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		config.sackCheck.setMissing(r.diffs(), previous);
+		// Kept with the session it belongs to, for /kazanc gecmis.
+		History.Check hc = History.check(r, modCoins, prices, now);
+		if (endedState(previous, now)) {
+			History.Session rec = config.history.find(config.sackCheck.endedId);
+			if (rec != null) rec.check = hc;
+		} else {
+			config.liveCheck = hc;
+		}
 		if (r.diffs().isEmpty()) {
 			config.sackCheck.lastReport = null;
 			save();
@@ -652,20 +678,34 @@ public final class MiningProfitClient implements ClientModInitializer {
 	/** Adds the items the last check found missing to the earnings (/kazanc duzelt, or on its own). */
 	private void fix(FabricClientCommandSource src, boolean auto) {
 		long now = System.currentTimeMillis();
-		// After /kazanc bitir the session is zero: only the all-time total gets it.
+		// After /kazanc bitir the items belong to the ended session, which is in the history.
 		boolean session = !config.sackCheck.missingEnded
 			&& (tracker.running() || tracker.sessionMs(now) > 0 || config.sackCheck.endedCoins == null);
+		if (!session) {
+			History.Session rec = config.history.find(config.sackCheck.endedId);
+			if (rec == null || rec.check == null) {
+				config.sackCheck.takeMissing();
+				save();
+				if (!auto) say(src, "Eklenecek eksik yok (session kaydedilmemiş ya da silinmiş). Önce /kazanc kontrol yaz.");
+				return;
+			}
+			fixRecord(src, rec, auto);
+			return;
+		}
 		Map<String, Long> missing = config.sackCheck.takeMissing();
 		double coins = 0;
 		List<String> parts = new ArrayList<>();
 		for (Map.Entry<String, Long> e : missing.entrySet()) {
 			Prices.Item item = prices.byId(e.getKey());
 			if (item == null || item.value() <= 0) continue;
-			tracker.addFix(item, e.getValue(), session);
+			tracker.addFix(item, e.getValue(), true);
 			coins += e.getValue() * item.value();
 			parts.add(signed(e.getValue()) + " " + (item.name() != null ? item.name() : e.getKey()));
 		}
-		if (!session && config.sackCheck.endedCoins != null) config.sackCheck.endedCoins += coins;
+		if (config.liveCheck != null) {
+			config.liveCheck.fixedCoins += coins;
+			config.liveCheck.missing = new java.util.HashMap<>();
+		}
 		save();
 		if (config.debugLog) debug.simple("fix", now);
 		if (coins <= 0) {
@@ -673,8 +713,138 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		say(src, (auto ? "Sack mesajı gelmeyen itemler API'den eklendi: §a+" : "Eklendi: §a+") + Format.coins(coins) + "§r ("
-			+ String.join(", ", parts) + ")" + (session ? "." : ", session bittiği için sadece Toplam'a.")
+			+ String.join(", ", parts) + ")." + (auto ? " Elle eklemek istersen: /kazanc duzelt elle" : ""));
+	}
+
+	/** Adds what a saved session's check found missing to that session and to Toplam. */
+	private void fixRecord(FabricClientCommandSource src, History.Session rec, boolean auto) {
+		long now = System.currentTimeMillis();
+		History.Check c = rec.check;
+		double coins = 0;
+		List<String> parts = new ArrayList<>();
+		if (c != null && c.missing != null) {
+			for (History.Item i : c.items) {
+				Long n = c.missing.get(i.id);
+				Prices.Item item = prices.byId(i.id);
+				if (n == null || n <= 0 || item == null) continue;
+				double value = i.value > 0 ? i.value : item.value();
+				double added = tracker.addFixTo(rec, item, n, value);
+				if (added <= 0) continue;
+				coins += added;
+				parts.add(signed(n) + " " + i.name);
+			}
+			c.fixedCoins += coins;
+			c.missing = new java.util.HashMap<>();
+		}
+		// The same items wait in the sack check too: added now, so not again.
+		if (rec.start == config.sackCheck.endedId) {
+			config.sackCheck.takeMissing();
+			if (config.sackCheck.endedCoins != null) config.sackCheck.endedCoins += coins;
+		}
+		save();
+		if (config.debugLog) debug.simple("fix", now);
+		if (src == null) return;
+		if (coins <= 0) {
+			if (!auto) say(src, "Eklenecek eksik yok.");
+			return;
+		}
+		say(src, (auto ? "Sack mesajı gelmeyen itemler API'den eklendi: §a+" : "Eklendi: §a+") + Format.coins(coins) + "§r ("
+			+ String.join(", ", parts) + "), " + History.date(rec.start) + " session'ına ve Toplam'a."
 			+ (auto ? " Elle eklemek istersen: /kazanc duzelt elle" : ""));
+	}
+
+	/** The check is about a session that has ended (not the one running now). */
+	private boolean endedState(boolean previous, long now) {
+		return previous || (!tracker.running() && tracker.sessionMs(now) == 0 && config.sackCheck.endedCoins != null);
+	}
+
+	/**
+	 * Ends the session and saves it in the history (one that earned nothing is not saved, and its
+	 * time leaves Toplam too). Returns the saved session or null.
+	 */
+	private History.Session endSession(long now) {
+		History.Session rec = tracker.record(now);
+		tracker.end(now);
+		History.Session saved = null;
+		if (rec.coins > 0) {
+			rec.check = config.liveCheck;
+			config.history.sessions.add(rec);
+			saved = rec;
+		} else {
+			tracker.totalMs = Math.max(0, tracker.totalMs - rec.ms);
+		}
+		config.liveCheck = null;
+		config.sackCheck.endedId = saved != null ? saved.start : 0;
+		return saved;
+	}
+
+	// ---------- the history menu (/kazanc gecmis) ----------
+	/** A screen to open on the next tick (a chat command runs while the chat is still open). */
+	private java.util.function.Supplier<net.minecraft.client.gui.screens.Screen> pendingScreen;
+
+	public History history() {
+		return config.history;
+	}
+
+	/** A session is running or stopped with something counted (shown on top of the list). */
+	public boolean hasLiveSession(long now) {
+		return tracker.running() || tracker.sessionMs(now) > 0 || tracker.sessionCoins > 0;
+	}
+
+	/** The session running now, as a history entry (not saved). */
+	public History.Session liveRecord(long now) {
+		History.Session r = tracker.record(now);
+		r.check = config.liveCheck;
+		return r;
+	}
+
+	private FabricClientCommandSource menuSource() {
+		return lastSrc != null ? lastSrc : joinSource();
+	}
+
+	/** Düzelt in the menu: null = the session running now. */
+	public void menuFix(History.Session rec) {
+		FabricClientCommandSource src = menuSource();
+		if (rec == null) {
+			if (src != null) fix(src, false);
+			return;
+		}
+		fixRecord(src, rec, false);
+	}
+
+	/** Kontrol et works for the session running now, or the last ended one until a new one starts. */
+	public boolean canCheck(History.Session rec) {
+		if (!hasKey() || !config.sackCheck.hasBase()) return false;
+		long now = System.currentTimeMillis();
+		if (rec == null) return hasLiveSession(now) && !endedState(config.sackCheck.previousPending, now);
+		return rec.start == config.sackCheck.endedId && endedState(config.sackCheck.previousPending, now);
+	}
+
+	public void menuCheck() {
+		FabricClientCommandSource src = menuSource();
+		if (src != null) check(src, false);
+	}
+
+	public void menuDelete(History.Session rec) {
+		config.history.sessions.remove(rec);
+		tracker.remove(rec);
+		if (rec.start == config.sackCheck.endedId) forgetEndedMissing();
+		save();
+	}
+
+	public void menuDeleteAll() {
+		tracker.resetTotal(System.currentTimeMillis());
+		config.history.sessions.clear();
+		forgetEndedMissing();
+		save();
+	}
+
+	/** The deleted session's missing items must not be added by /kazanc duzelt later. */
+	private void forgetEndedMissing() {
+		if (config.sackCheck.endedId == 0) return;
+		config.sackCheck.missing = new java.util.HashMap<>();
+		config.sackCheck.endedId = 0;
+		config.sackCheck.lastReport = null;
 	}
 
 	/** After a server change the last sack message may never come: the API is checked this much later. */
@@ -700,7 +870,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		long ms = tracker.sessionMs(now);
 		if (ms <= 0 && tracker.sessionCoins <= 0) return;
 		double coins = Tracker.net(tracker.sessionCoins, tracker.sessionBreakdown, config.keyCost);
-		tracker.end(now);
+		endSession(now);
 		config.sackCheck.endedCoins = coins;
 		config.sackCheck.previousPending = config.sackCheck.hasBase() && hasKey();
 		Config.Previous p = new Config.Previous();
@@ -1010,6 +1180,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		config.totalMs = tracker.totalMs(now);
 		config.sessionCoins = tracker.sessionCoins;
 		config.sessionMs = tracker.sessionMs(now);
+		config.sessionStart = tracker.sessionStart;
 		config.sessionBreakdown = tracker.sessionBreakdown;
 		config.totalBreakdown = tracker.totalBreakdown;
 		config.save(configFile);

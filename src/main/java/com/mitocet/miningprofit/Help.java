@@ -28,11 +28,13 @@ public final class Help {
 			new Entry("devam", "/kazanc devam", "Durdurulan session'a devam eder",
 				"/kazanc dur ile durdurulan session'ın sayımı ve süresi kaldığı yerden sürer."),
 			new Entry("bitir", "/kazanc bitir", "Session'ı bitirir ve sıfırlar",
-				"Durdurur, özeti (kazanç, süre, saatlik) sohbete yazar ve session'ı sıfırlar. Toplam'a dokunmaz. Yeni session kendiliğinden başlamaz. API anahtarı varsa sack kontrolü de yapılır. Session açıkken oyunu kapatırsan (ya da oyun çökerse) aynısı kendiliğinden olur: sonraki açışta özet sohbete yazılır, API anahtarı varsa önceki session'ın sack kontrolü kendiliğinden yapılır; yeni session yine /kazanc baslat ile başlar."),
+				"Durdurur, özeti (kazanç, süre, saatlik) sohbete yazar, session'ı geçmişe kaydeder (/kazanc gecmis) ve sıfırlar. Kazancı olmayan session kaydedilmez. Yeni session kendiliğinden başlamaz. API anahtarı varsa sack kontrolü de yapılır. Session açıkken oyunu kapatırsan (ya da oyun çökerse) aynısı kendiliğinden olur: sonraki açışta özet sohbete yazılır, API anahtarı varsa önceki session'ın sack kontrolü kendiliğinden yapılır; yeni session yine /kazanc baslat ile başlar."),
 			new Entry("", "/kazanc", "Session ve Toplam özeti",
 				"Session ve Toplam kazancı, süresi ve saatliği sohbete yazar."),
-			new Entry("sifirla", "/kazanc sifirla", "Toplam kazancı sıfırlar",
-				"Sadece Toplam (tüm zamanlar) sıfırlanır, session'a dokunulmaz."))),
+			new Entry("gecmis", "/kazanc gecmis", "Session geçmişi menüsü",
+				"Kayıtlı bütün sessionlar (en yeni üstte, süren session en üstte): tarih, süre, kazanç, saatlik, neyden ne kadar kazanıldığı ve API sack kontrolünün sonucu (mod ile gerçek farkı item item). Düzelt: kontrolün bulduğu eksikleri o session'a ve Toplam'a ekler. Kontrol et: süren ya da son biten session'ı API ile tekrar karşılaştırır. Sil: session'ı siler, Toplam'dan da çıkar (onay sorar). Toplam = kayıtlı sessionlar + süren session."),
+			new Entry("sifirla", "/kazanc sifirla", "Bütün sessionları siler (onaylı)",
+				"Geçmiş menüsünde onay sorar; evet dersen bütün kayıtlı sessionlar silinir ve Toplam sıfırlanır. Süren session silinmez. Menüdeki 'Hepsini sil' ile aynı."))),
 		new Group("Kutu", List.of(
 			new Entry("sekme", "/kazanc sekme", "Session / Toplam sekmesi",
 				"Kutuda Session (bu session) ile Toplam (tüm zamanlar) arasında geçer. Kutudaki yazıya tıklayarak da değişir."),
@@ -57,7 +59,7 @@ public final class Help {
 			new Entry("kontrol", "/kazanc kontrol", "Sack sayılarını API ile karşılaştır",
 				"Modun okuduğu sack değişimi Hypixel API'deki gerçek sayılarla item item karşılaştırılır. Fark varsa 'gerçek X, mod Y' ve API'ye göre gerçek kazanç yazılır. Hypixel birkaç dakika geç günceller; 2-3 dk sonra tekrar dene. Eksik çıkanlar /kazanc duzelt ile eklenir."),
 			new Entry("duzelt", "/kazanc duzelt [otomatik|elle]", "Kaçan sack mesajını API'den ekle",
-				"Sack mesajı gelmeden Mineshaft'tan ya da sunucudan çıkarsan son ~30 sn'nin itemleri sack'e girer ama mod göremez. /kazanc kontrol bunları API'den bulur, /kazanc duzelt değerlerini kazanca ekler (session bittiyse sadece Toplam'a). Varsayılan elle. otomatik: kontrolde bulunan eksikler kendiliğinden eklenir ve sunucu değişiminden ya da kısa kesilmiş bir sack listesinden ~3 dk sonra kontrol kendiliğinden yapılır. Not: envanterden sack'e elle koyduğun itemler de fark olarak görünür, otomatikte onlar da eklenir."),
+				"Sack mesajı gelmeden Mineshaft'tan ya da sunucudan çıkarsan son ~30 sn'nin itemleri sack'e girer ama mod göremez. /kazanc kontrol bunları API'den bulur, /kazanc duzelt değerlerini kazanca ekler (session bittiyse geçmişteki o session'a ve Toplam'a). Eski bir session'ı düzeltmek için /kazanc gecmis'te seçip Düzelt'e bas. Varsayılan elle. otomatik: kontrolde bulunan eksikler kendiliğinden eklenir ve sunucu değişiminden ya da kısa kesilmiş bir sack listesinden ~3 dk sonra kontrol kendiliğinden yapılır. Not: envanterden sack'e elle koyduğun itemler de fark olarak görünür, otomatikte onlar da eklenir."),
 			new Entry("uyari", "/kazanc uyari", "Bu session'daki uyarılar",
 				"Kutuda '⚠ Emin değilim' yazıyorsa nedenini söyler: okunamayan ya da iki kez gelen sack mesajı, kısa kesilmiş liste ('+N other items'; gizli kısım az önceki corpse loot'uysa uyarı çıkmaz), tanınmayan item gibi."),
 			new Entry("kayit", "/kazanc kayit", "Hata kaydı (aç/kapa)",
@@ -70,7 +72,7 @@ public final class Help {
 	/** Things the mod does on its own, so the player knows what is and isn't counted. */
 	public static final List<String> NOTES = List.of(
 		"Sayılır: sack mesajlarındaki mining itemleri ve gemler, frozen corpse loot'u (anahtar ayarı kapalıyken sadece Lapis), /pickupstash ile gelenler.",
-		"Oyunu kapatınca session biter ve Toplam'a eklenir; sonraki açışta SkyBlock'a girince özeti ve sack kontrolü gelir, yeni session /kazanc baslat ile başlar.",
+		"Oyunu kapatınca session biter ve geçmişe kaydedilir; sonraki açışta SkyBlock'a girince özeti ve sack kontrolü gelir, yeni session /kazanc baslat ile başlar.",
 		"Sayılmaz: envanterden ya da Sack menüsünden sack'e koyulanlar, /craft ile yapılanlar, sack'ten alınanlar.",
 		"Değerler sitedeki Mining sekmesinin en kârlı yoluyla hesaplanır. Kutuyu T ile sohbeti açıp sürükleyebilir, köşesinden büyütebilirsin.");
 }
