@@ -65,6 +65,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private Updater updater;
 	private volatile boolean updating;
 	private boolean updateChecked;
+	private boolean keyChecked;
 
 	/** False until values were downloaded in this game session (only the saved ones are in use). */
 	public volatile boolean pricesFresh;
@@ -165,6 +166,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 			if (!updateChecked && client.player != null) {
 				updateChecked = true;
 				if (config.updateNotify) checkUpdateOnJoin();
+			}
+			if (!keyChecked && client.player != null) {
+				keyChecked = true;
+				if (hasKey()) checkKeyOnJoin();
 			}
 			if (++ticks >= 600) {
 				ticks = 0;
@@ -305,9 +310,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 						String key = com.mojang.brigadier.arguments.StringArgumentType.getString(c, "anahtar").trim();
 						if (key.equalsIgnoreCase("sil")) {
 							config.apiKey = null;
+							config.apiKeySetAt = 0;
 							save();
 							return say(c, "API anahtarı silindi.");
 						}
+						if (!key.equals(config.apiKey)) config.apiKeySetAt = System.currentTimeMillis();
 						config.apiKey = key;
 						save();
 						say(c, "API anahtarı kaydedildi, deneniyor...");
@@ -848,6 +855,44 @@ public final class MiningProfitClient implements ClientModInitializer {
 		return Component.literal("§6[Kazanç] §r" + text).setStyle(Style.EMPTY
 			.withHoverEvent(new HoverEvent.ShowText(Component.literal("Tıkla: " + command + " sohbete yazılır, Enter'a bas")))
 			.withClickEvent(new ClickEvent.SuggestCommand(command)));
+	}
+
+	/** First join of a game: say if the saved Hypixel API key no longer works (or runs out soon). */
+	private void checkKeyOnJoin() {
+		Minecraft mc = Minecraft.getInstance();
+		LocalPlayer player = mc.player;
+		if (player == null) return;
+		String uuid = player.getUUID().toString().replace("-", "");
+		String key = config.apiKey.trim();
+		long savedAt = config.apiKeySetAt;
+		Thread t = new Thread(() -> {
+			KeyCheck.Result r;
+			try {
+				HttpRequest req = HttpRequest.newBuilder(URI.create(KeyCheck.URL + uuid))
+					.header("API-Key", key).timeout(Duration.ofSeconds(30)).GET().build();
+				HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+				r = KeyCheck.result(res.statusCode(), res.body());
+				if (r == KeyCheck.Result.UNKNOWN) LOG.warn("API key check: HTTP {}", res.statusCode());
+			} catch (Exception e) {
+				LOG.warn("API key check failed: {}", e.toString());
+				r = KeyCheck.Result.UNKNOWN;
+			}
+			KeyCheck.Result result = r;
+			// The answer comes a moment later; joinSource() is there by then.
+			mc.execute(() -> {
+				if (!key.equals(config.apiKey == null ? null : config.apiKey.trim())) return; // changed meanwhile
+				if (result == KeyCheck.Result.INVALID) {
+					chat(clickable("§cHypixel API anahtarın çalışmıyor (süresi bitmiş ya da geçersiz). §rSack kontrolü yapılamaz. "
+						+ "developer.hypixel.net → Regenerate, sonra /kazanc api <yeni anahtar> §b[tıkla]", "/kazanc api "));
+				} else if (result == KeyCheck.Result.OK) {
+					long h = KeyCheck.hoursLeftToWarn(savedAt, System.currentTimeMillis());
+					if (h > 0) chat(clickable("§eAPI anahtarı çalışıyor ama ~" + h + " saat içinde bitebilir (Development Key 3 gün sürer). "
+						+ "§rYenileyince /kazanc api <yeni anahtar> §b[tıkla]", "/kazanc api "));
+				}
+			});
+		}, "miningprofit-key-check");
+		t.setDaemon(true);
+		t.start();
 	}
 
 	/** First join of a game: tell (don't download) if a newer jar is on the Releases page. */
