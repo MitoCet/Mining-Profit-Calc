@@ -67,6 +67,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private int ticks;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
 	private Updater updater;
+	/** Opens the /kazanc menu; set in Options → Controls. */
+	private net.minecraft.client.KeyMapping menuKey;
 	private volatile boolean updating;
 	private boolean updateChecked;
 	/** In SkyBlock by the sidebar title (kept while there is no sidebar, e.g. right after a server change). */
@@ -175,6 +177,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 			});
 		});
 
+		menuKey = net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper.registerKeyMapping(new net.minecraft.client.KeyMapping(
+			"key.miningprofit.menu", com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM,
+			com.mojang.blaze3d.platform.InputConstants.UNKNOWN.getValue(), net.minecraft.client.KeyMapping.Category.MISC));
+
 		// Closing the game ends the session like /kazanc bitir; the next join tells about it (no new session).
 		ClientLifecycleEvents.CLIENT_STOPPING.register((client) -> {
 			endOnExit(System.currentTimeMillis(), false);
@@ -186,6 +192,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
 			if (ticks % 10 == 0) readInventory(client);
 			autoCheckTick(client);
+			// The menu key (Controls → Misc, unbound by default).
+			while (menuKey.consumeClick()) {
+				if (client.player != null) client.gui.setScreen(new SettingsScreen(this));
+			}
 			// A screen opened from a chat command: after the chat has closed.
 			if (pendingScreen != null) {
 				java.util.function.Supplier<net.minecraft.client.gui.screens.Screen> open = pendingScreen;
@@ -209,7 +219,13 @@ public final class MiningProfitClient implements ClientModInitializer {
 
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, ctx) -> dispatcher.register(
 			ClientCommands.literal("kazanc")
-				.executes(this::status)
+				.executes((c) -> {
+					// Every command and setting as buttons (Mito); the summary moved to /kazanc ozet.
+					lastSrc = c.getSource();
+					pendingScreen = () -> new SettingsScreen(this);
+					return Command.SINGLE_SUCCESS;
+				})
+				.then(ClientCommands.literal("ozet").executes(this::status))
 				.then(ClientCommands.literal("baslat").executes((c) -> {
 					long now = System.currentTimeMillis();
 					tracker.start(now);
@@ -323,11 +339,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("anahtar").executes((c) -> {
-					config.keyCost = !config.keyCost;
-					save();
-					return say(c, config.keyCost
-						? "Tüm corpse'lar sayılıyor, anahtarlar kazançtan düşülüyor (büyük kutuda Corpse Loot altında). Kapatmak için /kazanc anahtar."
-						: "Sadece Lapis corpse'ları sayılıyor (anahtar istemeyen). Tungsten/Umber/Vanguard için /kazanc anahtar.");
+					return say(c, toggleKeyCost());
 				}))
 				.then(ClientCommands.literal("bosta")
 					.executes((c) -> say(c, config.idleSeconds > 0
@@ -529,6 +541,20 @@ public final class MiningProfitClient implements ClientModInitializer {
 	}
 
 	// ---------- sack check against the Hypixel API ----------
+	/** A button in the /kazanc menu: runs /kazanc <sub> as if typed (Fabric runs it on the client). */
+	public void runCommand(String sub) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player != null) mc.player.connection.sendCommand("kazanc " + sub);
+	}
+
+	public boolean hasApiKey() {
+		return hasKey();
+	}
+
+	public String version() {
+		return updater != null ? updater.currentVersion() : "?";
+	}
+
 	private boolean hasKey() {
 		return config.apiKey != null && !config.apiKey.isBlank();
 	}
@@ -833,6 +859,21 @@ public final class MiningProfitClient implements ClientModInitializer {
 	}
 
 	/** Oto düzelt in the menu: missing items are added on their own and the API is checked ~3 min after a server change. */
+	/** Flips the corpse key setting (/kazanc anahtar and the button in /kazanc gecmis). */
+	private String toggleKeyCost() {
+		config.keyCost = !config.keyCost;
+		save();
+		return config.keyCost
+			? "Tüm corpse'lar sayılıyor, anahtarlar kazançtan düşülüyor (büyük kutuda Corpse Loot altında). Kapatmak için /kazanc anahtar ya da /kazanc gecmis'teki buton."
+			: "Sadece Lapis corpse'ları sayılıyor (anahtar istemeyen). Tungsten/Umber/Vanguard için /kazanc anahtar ya da /kazanc gecmis'teki buton.";
+	}
+
+	public void menuToggleKeyCost() {
+		String msg = toggleKeyCost();
+		FabricClientCommandSource src = menuSource();
+		if (src != null) say(src, msg);
+	}
+
 	public void menuToggleAutoFix() {
 		config.autoFix = !config.autoFix;
 		save();

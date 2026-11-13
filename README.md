@@ -19,7 +19,8 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 | `/kazanc dur` | Durdurur ve özeti sohbete yazar |
 | `/kazanc bitir` | Session'ı bitirir: durdurur, özeti sohbete yazar, geçmişe kaydeder ve session'ı sıfırlar. Session açıkken oyunu kapatınca (ya da oyun çökünce) aynısı kendiliğinden olur |
 | `/kazanc devam` | Durdurulan session'a devam eder |
-| `/kazanc` | Session ve toplam özeti |
+| `/kazanc` | **Ayar menüsü**: her komut ve ayar bir buton (aşağıya bak) |
+| `/kazanc ozet` | Session ve toplam özetini sohbete yazar |
 | `/kazanc sekme` | Kutuda Session / Toplam arasında geçiş |
 | `/kazanc gecmis` | Session geçmişi menüsü (aşağıya bak) |
 | `/kazanc sifirla` | Onay sorup bütün kayıtlı sessionları siler, Toplam sıfırlanır (süren session kalır) |
@@ -28,7 +29,7 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır; bitince "Fiyatlar yenilendi" (item sayısı, verinin yaşı) ya da hata yazar |
 | `/kazanc kayit` | Kaydı açar / kapatır: mod okuduğu mesajları dosyaya yazar (aşağıya bak) |
 | `/kazanc uyari` | Bu session'daki uyarıları sohbete yazar |
-| `/kazanc anahtar` | Anahtarlı corpse'ları (Tungsten/Umber/Vanguard) sayıp anahtarlarını düşmeyi açar / kapatır (varsayılan kapalı: sadece Lapis corpse'ları sayılır) |
+| `/kazanc anahtar` | Anahtarlı corpse'ları (Tungsten/Umber/Vanguard) sayıp anahtarlarını düşmeyi açar / kapatır (varsayılan kapalı: sadece Lapis corpse'ları sayılır); `/kazanc gecmis`'te buton olarak da var |
 | `/kazanc api <anahtar>` | Hypixel API anahtarını kaydeder (sadece bu bilgisayarda, `config/mining-profit-calc.json`); `/kazanc api sil` siler |
 | `/kazanc kontrol` | Sack sayılarını Hypixel API ile karşılaştırır (aşağıya bak) |
 | `/kazanc update` | En yeni jar'ı indirir; oyunu kapatıp açınca yeni sürüm yüklenir (eski jar kendiliğinden silinir). `/kazanc update bildirim`: SkyBlock'a ilk girişte yeni sürüm haberini açar/kapatır |
@@ -38,6 +39,12 @@ Kutu session çalışırken görünür. T ile sohbeti açınca kutuyu fareyle ba
 
 Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril, Titanium, Tungsten, Umber), Corpse Loot, Fiesta (Glossy Gemstone, Refined Mineral), Ore (Coal, Iron, Gold, Diamond, Lapis, Redstone, Emerald, Quartz, Obsidian), Diğer (Glacite, Hard Stone, Suspicious Scrap). En çok kazandıran üstte, kazancı olmayan başlık görünmez. Başlığa tıklayınca açılır ve neyden kaç tane geldiği yazar (ör. `Ruby: 1.200 Rough, 15 Flawed · 45,0k`). Session sekmesi bu session'ı, Toplam sekmesi tüm zamanları gösterir. Açık başlıklar ve kutu boyu oyun kapanınca da hatırlanır.
 
+### Ayar menüsü (`/kazanc`)
+
+`/kazanc` yazınca (ya da atadığın tuşa basınca) bir menü açılır: üstte Session ve Toplam özeti, altında her komutun ve ayarın butonu. Session: Başlat, Durdur/Devam, Bitir, Geçmiş, Sack kontrolü, Uyarılar, Özeti sohbete yaz. Kutu ve sayım: kutu boyu, sekme, durmuşken kutu, Anahtarlı corpse, Oto düzelt, Boşta durma (−/+ 30 sn). API ve diğer: API anahtarı kutusu (yapıştır, Kaydet / Sil), Fiyatları yenile, Güncelle, Güncelleme haberi, Hata kaydı, Yardım; en altta Hepsini sil ve Kapat. Butonlar aynı `/kazanc` komutlarını çalıştırır, cevapları sohbete yazılır; fareyi butonun üstünde tutunca ne yaptığı çıkar. Komutlar da aynen çalışır.
+
+Kısayol tuşu: Ayarlar → Kontroller → Tuş atamaları → Çeşitli → **Kazanç menüsü** (varsayılan atanmamış).
+
 ### Session geçmişi (`/kazanc gecmis`)
 
 Biten her session (`/kazanc bitir` ya da oyunu kapatınca) kaydedilir; kazancı olmayan session kaydedilmez. **Toplam = kayıtlı sessionlar + süren session.** Menüde solda sessionlar (en yeni üstte, süren session en üstte; tarih, süre, kazanç, saatlik, sack kontrolü durumu), sağda seçilenin ayrıntısı: neyden ne kadar kazanıldığı ve API sack kontrolü (mod ne saydı, API'ye göre gerçek, fark: Ne kazandım başlıklarına (Gemstone, Dwarven Metal, Diğer, Ore…) ve ailelere ayrılmış, her başlığın toplamı ve her ailenin net farkı yanında, itemleri altında). Her session'ın son kontrol sonucu onunla birlikte saklanır.
@@ -45,6 +52,7 @@ Biten her session (`/kazanc bitir` ya da oyunu kapatınca) kaydedilir; kazancı 
 - **Düzelt**: kontrolün bulduğu eksikleri o session'a ve Toplam'a ekler (eski sessionlarda da çalışır). Fark ve Düzelt aile bazında net hesaplanır (Glacite + Enchanted Glacite, Rough/Flawed/Fine aynı gem): kaybolan bir Supercraft mesajı "Glacite fazla, Enchanted Glacite eksik" gösterir, ikisi birbirinden düşülür. Değeri düşen aile eklenmez, kazançtan da düşülmez; menüde o aile "mod fazla · çıkarılmaz" yazar (sack API envantere düşenleri görmez, eksi fark çoğu zaman modun yanlış saydığı anlamına gelmez). Yukarıdaki Fark ile Düzelt tutarı hep aynıdır.
 - Corpse loot'u envanterde kalırsa (sack doluysa ya da sack'in almadığı Flawless gem gibi) sack kontrolünde fark sayılmaz.
 - **Kontrol et**: süren session'ı ya da (yeni session başlamadan) son biten session'ı API ile tekrar karşılaştırır; Hypixel eski sack sayılarını vermediği için daha eskiler tekrar kontrol edilemez, kayıtlı sonuçları görünür.
+- **Anahtarlı corpse: Sayılıyor/Sayılmıyor** (listenin altında): `/kazanc anahtar` ile aynı ayar; basınca menüdeki tutarlar, kutu ve Toplam hemen değişir (geriye dönük).
 - **Sil**: onay sorar, session'ı siler ve Toplam'dan çıkarır. **Hepsini sil** = `/kazanc sifirla`.
 
 ## Neyi sayar
