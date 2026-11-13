@@ -66,6 +66,12 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private volatile boolean updating;
 	private boolean updateChecked;
 	private boolean keyChecked;
+	/** In SkyBlock by the sidebar title (kept while there is no sidebar, e.g. right after a server change). */
+	private boolean inSkyBlock;
+	/** When the API key was last tested (ms), so island hops don't test it again and again. */
+	private long keyCheckedAt;
+	/** The yellow "runs out soon" line was shown in this game. */
+	private boolean keySoonShown;
 
 	/** False until values were downloaded in this game session (only the saved ones are in use). */
 	public volatile boolean pricesFresh;
@@ -169,8 +175,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 			}
 			if (!keyChecked && client.player != null) {
 				keyChecked = true;
-				if (hasKey()) checkKeyOnJoin();
+				if (hasKey()) checkKey();
 			}
+			if (ticks % 20 == 0) skyBlockTick(client);
 			if (++ticks >= 600) {
 				ticks = 0;
 				if (tracker.running()) save();
@@ -857,11 +864,25 @@ public final class MiningProfitClient implements ClientModInitializer {
 			.withClickEvent(new ClickEvent.SuggestCommand(command)));
 	}
 
-	/** First join of a game: say if the saved Hypixel API key no longer works (or runs out soon). */
-	private void checkKeyOnJoin() {
+	/** Once a second: entering SkyBlock (from a lobby or another game) tests the API key again. */
+	private void skyBlockTick(Minecraft client) {
+		if (client.player == null || client.level == null) return;
+		var sidebar = client.level.getScoreboard().getDisplayObjective(net.minecraft.world.scores.DisplaySlot.SIDEBAR);
+		if (sidebar == null) return; // not shown yet after a server change: keep what we knew
+		boolean now = KeyCheck.isSkyBlockTitle(sidebar.getDisplayName().getString());
+		if (now && !inSkyBlock && hasKey() && System.currentTimeMillis() - keyCheckedAt >= KeyCheck.RECHECK_MS) checkKey();
+		inSkyBlock = now;
+	}
+
+	/**
+	 * On the first join of a game and on entering SkyBlock: say if the saved Hypixel API key no
+	 * longer works (every time), or runs out soon (once a game).
+	 */
+	private void checkKey() {
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer player = mc.player;
 		if (player == null) return;
+		keyCheckedAt = System.currentTimeMillis();
 		String uuid = player.getUUID().toString().replace("-", "");
 		String key = config.apiKey.trim();
 		long savedAt = config.apiKeySetAt;
@@ -886,8 +907,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 						+ "developer.hypixel.net → Regenerate, sonra /kazanc api <yeni anahtar> §b[tıkla]", "/kazanc api "));
 				} else if (result == KeyCheck.Result.OK) {
 					long h = KeyCheck.hoursLeftToWarn(savedAt, System.currentTimeMillis());
-					if (h > 0) chat(clickable("§eAPI anahtarı çalışıyor ama ~" + h + " saat içinde bitebilir (Development Key 3 gün sürer). "
+					if (h > 0 && !keySoonShown) {
+						keySoonShown = true;
+						chat(clickable("§eAPI anahtarı çalışıyor ama ~" + h + " saat içinde bitebilir (Development Key 3 gün sürer). "
 						+ "§rYenileyince /kazanc api <yeni anahtar> §b[tıkla]", "/kazanc api "));
+					}
 				}
 			});
 		}, "miningprofit-key-check");

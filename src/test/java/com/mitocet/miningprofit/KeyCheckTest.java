@@ -26,4 +26,14 @@ class KeyCheckTest {
 		assertEquals(3, KeyCheck.hoursLeftToWarn(saved, saved + 69 * h + 1));
 		assertEquals(-1, KeyCheck.hoursLeftToWarn(saved, saved + 73 * h)); // past: the key check itself says so
 	}
+
+	@Test
+	void knowsSkyBlockSidebar() {
+		org.junit.jupiter.api.Assertions.assertTrue(KeyCheck.isSkyBlockTitle("§e§lSKYBLOCK"));
+		org.junit.jupiter.api.Assertions.assertTrue(KeyCheck.isSkyBlockTitle("SKYBLOCK CO-OP"));
+		org.junit.jupiter.api.Assertions.assertTrue(KeyCheck.isSkyBlockTitle("SKIBLOCK"));
+		org.junit.jupiter.api.Assertions.assertFalse(KeyCheck.isSkyBlockTitle("§e§lHYPIXEL"));
+		org.junit.jupiter.api.Assertions.assertFalse(KeyCheck.isSkyBlockTitle("BED WARS"));
+		org.junit.jupiter.api.Assertions.assertFalse(KeyCheck.isSkyBlockTitle(null));
+	}
 }

@@ -53,7 +53,7 @@ public final class Help {
 				"Değerler siteden yeniden alınır (normalde 15 dakikada bir kendiliğinden yenilenir). Bitince sohbete 'Fiyatlar yenilendi' (item sayısı, verinin yaşı) ya da hata yazılır. Eski fiyat kullanılıyorsa kutuda '⚠ Fiyatlar güncel değil' yazar."))),
 		new Group("Kontrol ve sorunlar", List.of(
 			new Entry("api", "/kazanc api <anahtar>", "Hypixel API anahtarını kaydet",
-				"developer.hypixel.net anahtarı sadece bu bilgisayardaki mod ayarına kaydedilir. /kazanc api sil siler, /kazanc api kayıtlı mı söyler. Sack kontrolü için gerekir. Oyuna girince mod anahtarın hâlâ çalışıp çalışmadığına bakar; bitmişse ya da 12 saatten az kaldıysa sohbette söyler."),
+				"developer.hypixel.net anahtarı sadece bu bilgisayardaki mod ayarına kaydedilir. /kazanc api sil siler, /kazanc api kayıtlı mı söyler. Sack kontrolü için gerekir. Oyuna ve SkyBlock'a girince mod anahtarın hâlâ çalışıp çalışmadığına bakar; bitmişse kırmızı, 12 saatten az kaldıysa (oyun başına bir kez) sarı uyarı verir."),
 			new Entry("kontrol", "/kazanc kontrol", "Sack sayılarını API ile karşılaştır",
 				"Modun okuduğu sack değişimi Hypixel API'deki gerçek sayılarla item item karşılaştırılır. Fark varsa 'gerçek X, mod Y' ve API'ye göre gerçek kazanç yazılır. Hypixel birkaç dakika geç günceller; 2-3 dk sonra tekrar dene. Eksik çıkanlar /kazanc duzelt ile eklenir."),
 			new Entry("duzelt", "/kazanc duzelt [otomatik|elle]", "Kaçan sack mesajını API'den ekle",
