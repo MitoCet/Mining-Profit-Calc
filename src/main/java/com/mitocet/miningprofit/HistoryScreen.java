@@ -33,6 +33,7 @@ public final class HistoryScreen extends Screen {
 	private Button checkButton;
 	private Button deleteButton;
 	private Button autoFixButton;
+	private Button keyCostButton;
 
 	// Layout, set in init().
 	private int listX;
@@ -41,7 +42,7 @@ public final class HistoryScreen extends Screen {
 	private int detailW;
 	private int top;
 	private int bottom;
-	/** The list ends higher: the Oto düzelt button sits under it. */
+	/** The list ends higher: the Anahtar and Oto düzelt buttons sit under it. */
 	private int listBottom;
 
 	public HistoryScreen(MiningProfitClient mod) {
@@ -63,8 +64,14 @@ public final class HistoryScreen extends Screen {
 		detailW = width - detailX - 10;
 		top = 32;
 		bottom = height - 32;
-		listBottom = height - 56;
+		listBottom = height - 80;
 		int y = height - 26;
+		// Same setting as /kazanc anahtar; the list and details are drawn with it every frame,
+		// so the totals change at once (retroactive).
+		keyCostButton = addRenderableWidget(Button.builder(keyCostText(), (b) -> {
+			mod.menuToggleKeyCost();
+			b.setMessage(keyCostText());
+		}).pos(listX, height - 74).size(listW, 20).build());
 		autoFixButton = addRenderableWidget(Button.builder(autoFixText(), (b) -> {
 			mod.menuToggleAutoFix();
 			b.setMessage(autoFixText());
@@ -85,6 +92,10 @@ public final class HistoryScreen extends Screen {
 		}).pos(detailX + 2 * (bw + gap), y).size(bw, 20).build());
 		addRenderableWidget(Button.builder(Component.literal("Kapat"), (b) -> Minecraft.getInstance().gui.setScreen(null))
 			.pos(detailX + 3 * (bw + gap), y).size(detailW - 3 * (bw + gap), 20).build());
+	}
+
+	private Component keyCostText() {
+		return Component.literal("Anahtarlı corpse: " + (mod.config.keyCost ? "§aSayılıyor" : "Sayılmıyor"));
 	}
 
 	private Component autoFixText() {

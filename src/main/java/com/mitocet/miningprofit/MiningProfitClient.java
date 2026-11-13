@@ -323,11 +323,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 					return Command.SINGLE_SUCCESS;
 				}))
 				.then(ClientCommands.literal("anahtar").executes((c) -> {
-					config.keyCost = !config.keyCost;
-					save();
-					return say(c, config.keyCost
-						? "Tüm corpse'lar sayılıyor, anahtarlar kazançtan düşülüyor (büyük kutuda Corpse Loot altında). Kapatmak için /kazanc anahtar."
-						: "Sadece Lapis corpse'ları sayılıyor (anahtar istemeyen). Tungsten/Umber/Vanguard için /kazanc anahtar.");
+					return say(c, toggleKeyCost());
 				}))
 				.then(ClientCommands.literal("bosta")
 					.executes((c) -> say(c, config.idleSeconds > 0
@@ -833,6 +829,21 @@ public final class MiningProfitClient implements ClientModInitializer {
 	}
 
 	/** Oto düzelt in the menu: missing items are added on their own and the API is checked ~3 min after a server change. */
+	/** Flips the corpse key setting (/kazanc anahtar and the button in /kazanc gecmis). */
+	private String toggleKeyCost() {
+		config.keyCost = !config.keyCost;
+		save();
+		return config.keyCost
+			? "Tüm corpse'lar sayılıyor, anahtarlar kazançtan düşülüyor (büyük kutuda Corpse Loot altında). Kapatmak için /kazanc anahtar ya da /kazanc gecmis'teki buton."
+			: "Sadece Lapis corpse'ları sayılıyor (anahtar istemeyen). Tungsten/Umber/Vanguard için /kazanc anahtar ya da /kazanc gecmis'teki buton.";
+	}
+
+	public void menuToggleKeyCost() {
+		String msg = toggleKeyCost();
+		FabricClientCommandSource src = menuSource();
+		if (src != null) say(src, msg);
+	}
+
 	public void menuToggleAutoFix() {
 		config.autoFix = !config.autoFix;
 		save();

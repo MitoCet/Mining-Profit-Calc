@@ -28,7 +28,7 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır; bitince "Fiyatlar yenilendi" (item sayısı, verinin yaşı) ya da hata yazar |
 | `/kazanc kayit` | Kaydı açar / kapatır: mod okuduğu mesajları dosyaya yazar (aşağıya bak) |
 | `/kazanc uyari` | Bu session'daki uyarıları sohbete yazar |
-| `/kazanc anahtar` | Anahtarlı corpse'ları (Tungsten/Umber/Vanguard) sayıp anahtarlarını düşmeyi açar / kapatır (varsayılan kapalı: sadece Lapis corpse'ları sayılır) |
+| `/kazanc anahtar` | Anahtarlı corpse'ları (Tungsten/Umber/Vanguard) sayıp anahtarlarını düşmeyi açar / kapatır (varsayılan kapalı: sadece Lapis corpse'ları sayılır); `/kazanc gecmis`'te buton olarak da var |
 | `/kazanc api <anahtar>` | Hypixel API anahtarını kaydeder (sadece bu bilgisayarda, `config/mining-profit-calc.json`); `/kazanc api sil` siler |
 | `/kazanc kontrol` | Sack sayılarını Hypixel API ile karşılaştırır (aşağıya bak) |
 | `/kazanc update` | En yeni jar'ı indirir; oyunu kapatıp açınca yeni sürüm yüklenir (eski jar kendiliğinden silinir). `/kazanc update bildirim`: SkyBlock'a ilk girişte yeni sürüm haberini açar/kapatır |
@@ -45,6 +45,7 @@ Biten her session (`/kazanc bitir` ya da oyunu kapatınca) kaydedilir; kazancı 
 - **Düzelt**: kontrolün bulduğu eksikleri o session'a ve Toplam'a ekler (eski sessionlarda da çalışır). Fark ve Düzelt aile bazında net hesaplanır (Glacite + Enchanted Glacite, Rough/Flawed/Fine aynı gem): kaybolan bir Supercraft mesajı "Glacite fazla, Enchanted Glacite eksik" gösterir, ikisi birbirinden düşülür. Değeri düşen aile eklenmez, kazançtan da düşülmez; menüde o aile "mod fazla · çıkarılmaz" yazar (sack API envantere düşenleri görmez, eksi fark çoğu zaman modun yanlış saydığı anlamına gelmez). Yukarıdaki Fark ile Düzelt tutarı hep aynıdır.
 - Corpse loot'u envanterde kalırsa (sack doluysa ya da sack'in almadığı Flawless gem gibi) sack kontrolünde fark sayılmaz.
 - **Kontrol et**: süren session'ı ya da (yeni session başlamadan) son biten session'ı API ile tekrar karşılaştırır; Hypixel eski sack sayılarını vermediği için daha eskiler tekrar kontrol edilemez, kayıtlı sonuçları görünür.
+- **Anahtarlı corpse: Sayılıyor/Sayılmıyor** (listenin altında): `/kazanc anahtar` ile aynı ayar; basınca menüdeki tutarlar, kutu ve Toplam hemen değişir (geriye dönük).
 - **Sil**: onay sorar, session'ı siler ve Toplam'dan çıkarır. **Hepsini sil** = `/kazanc sifirla`.
 
 ## Neyi sayar
