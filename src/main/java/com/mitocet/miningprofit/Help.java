@@ -53,7 +53,7 @@ public final class Help {
 				"Değerler siteden yeniden alınır (normalde 15 dakikada bir kendiliğinden yenilenir). Bitince sohbete 'Fiyatlar yenilendi' (item sayısı, verinin yaşı) ya da hata yazılır. Eski fiyat kullanılıyorsa kutuda '⚠ Fiyatlar güncel değil' yazar."))),
 		new Group("Kontrol ve sorunlar", List.of(
 			new Entry("api", "/kazanc api <anahtar>", "Hypixel API anahtarını kaydet",
-				"developer.hypixel.net anahtarı sadece bu bilgisayardaki mod ayarına kaydedilir. /kazanc api sil siler, /kazanc api kayıtlı mı söyler. Sack kontrolü için gerekir. Oyuna girince mod anahtarın hâlâ çalışıp çalışmadığına bakar; bitmişse ya da 12 saatten az kaldıysa sohbette söyler."),
+				"developer.hypixel.net anahtarı sadece bu bilgisayardaki mod ayarına kaydedilir. /kazanc api sil siler, /kazanc api kayıtlı mı söyler. Sack kontrolü için gerekir. SkyBlock'a her girince mod anahtarın hâlâ çalışıp çalışmadığına bakar; bitmişse kırmızı, 12 saatten az kaldıysa (oyun başına bir kez) sarı uyarı verir."),
 			new Entry("kontrol", "/kazanc kontrol", "Sack sayılarını API ile karşılaştır",
 				"Modun okuduğu sack değişimi Hypixel API'deki gerçek sayılarla item item karşılaştırılır. Fark varsa 'gerçek X, mod Y' ve API'ye göre gerçek kazanç yazılır. Hypixel birkaç dakika geç günceller; 2-3 dk sonra tekrar dene. Eksik çıkanlar /kazanc duzelt ile eklenir."),
 			new Entry("duzelt", "/kazanc duzelt [otomatik|elle]", "Kaçan sack mesajını API'den ekle",
@@ -63,14 +63,14 @@ public final class Help {
 			new Entry("kayit", "/kazanc kayit", "Hata kaydı (aç/kapa)",
 				"Açıkken okunan sack mesajları, corpse satırları ve sayılan coinler config/mining-profit-calc-debug.log dosyasına yazılır. Oyun her açılışta yeni dosya başlar; bir önceki oyunun kaydı .old dosyasında kalır. Sayım yanlışsa bu dosyayı gönder."),
 			new Entry("update", "/kazanc update", "Modu en yeni sürüme güncelle",
-				"GitHub Releases'taki en yeni jar'ı indirir. Oyun açıkken eski jar kullanımda olduğu için hemen değişmez: oyunu kapatınca eski jar silinir, yenisi mods klasörüne konur, tekrar açınca yeni sürüm çalışır. Oyun açılınca yeni sürüm varsa sohbette haber verir; /kazanc update bildirim bu haberi açar/kapatır."),
+				"GitHub Releases'taki en yeni jar'ı indirir. Oyun açıkken eski jar kullanımda olduğu için hemen değişmez: oyunu kapatınca eski jar silinir, yenisi mods klasörüne konur, tekrar açınca yeni sürüm çalışır. Oyunu açıp SkyBlock'a ilk girince yeni sürüm varsa sohbette haber verir; /kazanc update bildirim bu haberi açar/kapatır."),
 			new Entry("help", "/kazanc help", "Bu liste",
 				"/kazanc yardim da aynı listeyi gösterir."))));
 
 	/** Things the mod does on its own, so the player knows what is and isn't counted. */
 	public static final List<String> NOTES = List.of(
 		"Sayılır: sack mesajlarındaki mining itemleri ve gemler, frozen corpse loot'u (anahtar ayarı kapalıyken sadece Lapis), /pickupstash ile gelenler.",
-		"Oyunu kapatınca session biter ve Toplam'a eklenir; sonraki açışta özeti ve sack kontrolü gelir, yeni session /kazanc baslat ile başlar.",
+		"Oyunu kapatınca session biter ve Toplam'a eklenir; sonraki açışta SkyBlock'a girince özeti ve sack kontrolü gelir, yeni session /kazanc baslat ile başlar.",
 		"Sayılmaz: envanterden ya da Sack menüsünden sack'e koyulanlar, /craft ile yapılanlar, sack'ten alınanlar.",
 		"Değerler sitedeki Mining sekmesinin en kârlı yoluyla hesaplanır. Kutuyu T ile sohbeti açıp sürükleyebilir, köşesinden büyütebilirsin.");
 }
