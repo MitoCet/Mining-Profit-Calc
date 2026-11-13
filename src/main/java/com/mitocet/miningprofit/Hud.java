@@ -71,8 +71,10 @@ public final class Hud {
 		long now = System.currentTimeMillis();
 
 		boolean session = cfg.sessionTab;
-		Breakdown bd = session ? t.sessionBreakdown : t.totalBreakdown;
-		double coins = Tracker.net(session ? t.sessionCoins : t.totalCoins, bd, cfg.keyCost);
+		Breakdown raw = session ? t.sessionBreakdown : t.totalBreakdown;
+		double coins = Tracker.net(session ? t.sessionCoins : t.totalCoins, raw, cfg.keyCost);
+		// Keyed corpse loot only shows (under Corpse Loot) while key costs are on.
+		Breakdown bd = raw.view(cfg.keyCost);
 		long ms = session ? t.sessionMs(now) : t.totalMs(now);
 		String tabA = "Session";
 		String tabB = "Toplam";

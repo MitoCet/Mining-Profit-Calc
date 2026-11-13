@@ -598,6 +598,7 @@ public final class Tracker {
 			Matcher type = CORPSE_TYPE.matcher(line);
 			String key = type.find() ? KEYS.get(type.group(1).toUpperCase(java.util.Locale.ROOT)) : null;
 			lastKey = null;
+			corpseKeyed = key != null;
 			if (key != null && running()) {
 				if (keySaved) keySaved = false;
 				else {
@@ -629,6 +630,8 @@ public final class Tracker {
 		"TUNGSTEN", "TUNGSTEN_KEY", "UMBER", "UMBER_KEY", "VANGUARD", "SKELETON_KEY");
 	/** The Resourceful perk kept the key of the next corpse. */
 	private boolean keySaved;
+	/** The corpse whose loot is being read needs a key (all but Lapis), even if Resourceful kept it. */
+	private boolean corpseKeyed;
 	/** Key of the corpse whose loot is being read (null when none was used). */
 	private String lastKey;
 
@@ -644,9 +647,12 @@ public final class Tracker {
 		totalBreakdown.addKey(name, n, n * value);
 	}
 
-	/** Earnings with the keys used taken off when {@code keys} is on. */
+	/**
+	 * Earnings as shown. Key costs on: everything, less the keys used. Off: keyed corpse loot
+	 * (Tungsten/Umber/Vanguard) left out, so only Lapis corpses count.
+	 */
 	public static double net(double coins, Breakdown bd, boolean keys) {
-		return keys ? coins - bd.keyCoins : coins;
+		return keys ? coins - bd.keyCoins : coins - bd.total(Breakdown.KEYED);
 	}
 
 	private void closeCorpse() {
@@ -691,8 +697,9 @@ public final class Tracker {
 		double coins = count * item.value();
 		if (coins > 0) {
 			String row = item.name() != null ? item.name() : name;
-			note(Breakdown.CORPSE, row, "", count);
-			noteCoins(Breakdown.CORPSE, row, coins);
+			String cat = corpseKeyed ? Breakdown.KEYED : Breakdown.CORPSE;
+			note(cat, row, "", count);
+			noteCoins(cat, row, coins);
 		}
 		earn(coins, now);
 		return coins;

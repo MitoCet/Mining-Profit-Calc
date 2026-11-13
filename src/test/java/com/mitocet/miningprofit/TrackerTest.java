@@ -255,7 +255,7 @@ class TrackerTest {
 		Tracker t = running();
 		for (String line : Tracker.lines("  UMBER CORPSE LOOT!\n  REWARDS\n    Umber Key x2\n    Tungsten x300")) t.onChatLine(line, 1000);
 		t.onSackMessage(List.of("  +500 Tungsten (Mining Sack)"), 20_000);
-		Breakdown b = t.sessionBreakdown;
+		Breakdown b = t.sessionBreakdown.view(true);
 		assertEquals(List.of(Breakdown.CORPSE, Breakdown.METAL), b.categories());
 		assertEquals(2 * 50000 + 300 * 100, b.total(Breakdown.CORPSE), 1e-9);
 		assertEquals("Tungsten: 200 · 20,0k", Breakdown.rowText("Tungsten", b.rows(Breakdown.METAL).get(0).getValue()));
@@ -449,12 +449,23 @@ class TrackerTest {
 		corpse(t, "LAPIS", 20_000);
 		corpse(t, "UMBER", 40_000);
 		Breakdown b = t.sessionBreakdown;
-		// Earnings stay as they were; the keys are only taken off when asked.
+		// Every corpse is read; what shows depends on /kazanc anahtar.
 		assertEquals(3 * 10 * 100, t.sessionCoins, 1e-9);
 		assertEquals(2 * 50000, b.keyCoins, 1e-9);
 		assertEquals("Anahtar: 2 Umber Key · -100,0k", b.keyText());
-		assertEquals(3000, Tracker.net(t.sessionCoins, b, false), 1e-9);
+		// Off: only the Lapis corpse counts, keys not taken off.
+		assertEquals(1000, Tracker.net(t.sessionCoins, b, false), 1e-9);
+		Breakdown off = b.view(false);
+		assertEquals(List.of(Breakdown.CORPSE), off.categories());
+		assertEquals(1000, off.total(Breakdown.CORPSE), 1e-9);
+		assertEquals(null, off.keyText());
+		// On: all three count, less the two keys, all under Corpse Loot.
 		assertEquals(3000 - 100_000, Tracker.net(t.sessionCoins, b, true), 1e-9);
+		Breakdown on = b.view(true);
+		assertEquals(List.of(Breakdown.CORPSE), on.categories());
+		assertEquals(3000, on.total(Breakdown.CORPSE), 1e-9);
+		assertEquals("Tungsten: 30 · 3,0k", Breakdown.rowText("Tungsten", on.rows(Breakdown.CORPSE).get(0).getValue()));
+		assertEquals("Anahtar: 2 Umber Key · -100,0k", on.keyText());
 		assertEquals(2 * 50000, t.totalBreakdown.keyCoins, 1e-9);
 		t.end(60_000);
 		assertEquals(0, t.sessionBreakdown.keyCoins, 1e-9);
@@ -476,6 +487,9 @@ class TrackerTest {
 		t.onChatLine("    Tungsten x10", 30_300);
 		t.onChatLine("", 30_400);
 		assertEquals(0, t.sessionBreakdown.keyCoins, 1e-9);
+		// A kept key still makes it a keyed corpse: its loot counts only with key costs on.
+		assertEquals(0, Tracker.net(t.sessionCoins, t.sessionBreakdown, false), 1e-9);
+		assertEquals(2000, Tracker.net(t.sessionCoins, t.sessionBreakdown, true), 1e-9);
 		// The next corpse uses its key again.
 		corpse(t, "UMBER", 32_000);
 		assertEquals(50000, t.sessionBreakdown.keyCoins, 1e-9);

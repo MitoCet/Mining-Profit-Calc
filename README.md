@@ -27,7 +27,7 @@ Sonraki sürümler için elle indirmek gerekmez: oyunda `/kazanc update` yaz. Mo
 | `/kazanc fiyat` | Fiyatları siteden hemen yeniden alır; bitince "Fiyatlar yenilendi" (item sayısı, verinin yaşı) ya da hata yazar |
 | `/kazanc kayit` | Kaydı açar / kapatır: mod okuduğu mesajları dosyaya yazar (aşağıya bak) |
 | `/kazanc uyari` | Bu session'daki uyarıları sohbete yazar |
-| `/kazanc anahtar` | Corpse anahtarlarını kazançtan düşmeyi açar / kapatır (varsayılan kapalı) |
+| `/kazanc anahtar` | Anahtarlı corpse'ları (Tungsten/Umber/Vanguard) sayıp anahtarlarını düşmeyi açar / kapatır (varsayılan kapalı: sadece Lapis corpse'ları sayılır) |
 | `/kazanc api <anahtar>` | Hypixel API anahtarını kaydeder (sadece bu bilgisayarda, `config/mining-profit-calc.json`); `/kazanc api sil` siler |
 | `/kazanc kontrol` | Sack sayılarını Hypixel API ile karşılaştırır (aşağıya bak) |
 | `/kazanc duzelt [otomatik\|elle]` | Sack mesajı gelmeyen itemleri API'den kazanca ekler (varsayılan elle) |
@@ -44,12 +44,12 @@ Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril,
 - **Envanterden sack'e koyulanlar sayılmaz** (mod envanteri izler; envanterden az önce çıkan item sack'e girince kazanç değildir). Envantere düşüp oradan sack'e giden mining itemleri de bu yüzden sayılmaz.
 - **Stash'ten gelenler sayılır:** `/pickupstash` ile envantere gelen itemler (envanterde craftlansalar bile) sack'e koyunca kazanç sayılır.
 - **Craftlamak kazancı değiştirmez:** sack'teki itemleri `/craft` ile craftlamak (ör. Glacite → Enchanted Glacite) ya da envanterde craftlayıp sack'e koymak kazanç eklemez, kazılanlardan da düşmez.
-- **Frozen corpse loot'u**: ödül listesindeki fiyatı olan her item, envantere düşenler dahil. Corpse'tan gelip sack'e giren itemler iki kez sayılmaz.
+- **Frozen corpse loot'u**: ödül listesindeki fiyatı olan her item, envantere düşenler dahil (anahtarlı corpse'lar sadece `/kazanc anahtar` açıkken, aşağıya bak). Corpse'tan gelip sack'e giren itemler iki kez sayılmaz.
 - Compact'tan düşen Enchanted itemler ve Pristine'den düşen Flawed gemler sack'e girince kendi değerleriyle sayılır (sack doluyken envantere düşenler sayılmaz).
 - **Sack menüsünden koyulan/alınanlar sayılmaz:** bir Sack menüsü açıkken ve kapandıktan 10 saniye sonrasına kadar gelen sack değişimleri kazanç değildir (stash'ten gelenler yine sayılır).
 - **`/craft` ile yapılanlar sayılmaz:** "You Supercrafted ..." mesajından sonraki 30 saniyede gelen ilk sack mesajında o item kazanç sayılmaz.
 - **Boşta süre durur:** 90 saniye (`/kazanc bosta` ile değişir) hiç kazanç gelmezse süre durur, kutuda "⏸ Boşta, süre durdu" yazar; ilk kazançta kendiliğinden devam eder. Saatlik sadece aktif süreye göre hesaplanır.
-- **Anahtarlar:** varsayılan olarak düşülmez. `/kazanc anahtar` açıkken kullanılan Tungsten/Umber/Skeleton Key'ler (kullanıldıkları andaki değerle) kazançtan düşülür; büyük kutuda Corpse Loot altında "Anahtar: ..." satırı çıkar. Resourceful perk'i anahtarı kurtarırsa düşülmez. Kapatınca toplam yine düşülmemiş haline döner. Diğer harcamalar düşülmez.
+- **Corpse'lar ve anahtarlar:** `/kazanc anahtar` kapalıyken (varsayılan) sadece Lapis corpse loot'u sayılır (anahtar istemez); Tungsten/Umber/Vanguard corpse loot'u kazanca girmez (sack'e girse de sayılmaz). Açıkken bütün corpse loot'u sayılır ve kullanılan Tungsten/Umber/Skeleton Key'ler (kullanıldıkları andaki değerle) kazançtan düşülür; büyük kutuda Corpse Loot altında "Anahtar: ..." satırı çıkar. Resourceful perk'i anahtarı kurtarırsa anahtar düşülmez ama loot yine sayılır. Ayar geriye dönüktür: açıp kapatınca toplam da değişir. Bu değişiklikten önce sayılan corpse loot'u türünü bilmediği için hep sayılı kalır. Diğer harcamalar düşülmez.
 
 ## Değerler nereden geliyor
 

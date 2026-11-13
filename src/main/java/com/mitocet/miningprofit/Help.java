@@ -47,8 +47,8 @@ public final class Help {
 		new Group("Sayım ayarları", List.of(
 			new Entry("bosta", "/kazanc bosta [sn]", "Boşta süre durması",
 				"Bu kadar saniye hiç kazanç gelmezse süre durur, ilk kazançta devam eder; saatlik sadece aktif süreyle hesaplanır. Varsayılan 90, 0 = hiç durmasın. Sayı yazmazsan şu anki ayarı söyler."),
-			new Entry("anahtar", "/kazanc anahtar", "Corpse anahtarlarını düş (aç/kapa)",
-				"Açıkken kullanılan Tungsten/Umber/Skeleton Key'ler kazançtan düşülür (büyük kutuda Corpse Loot altında). Varsayılan kapalı. Resourceful anahtarı kurtarırsa düşülmez."),
+			new Entry("anahtar", "/kazanc anahtar", "Anahtarlı corpse'ları say, anahtarı düş (aç/kapa)",
+				"Kapalıyken (varsayılan) sadece Lapis corpse loot'u sayılır. Açıkken Tungsten/Umber/Vanguard corpse loot'u da sayılır ve kullanılan Tungsten/Umber/Skeleton Key'ler kazançtan düşülür (büyük kutuda Corpse Loot altında). Resourceful anahtarı kurtarırsa düşülmez. Geriye dönük: açıp kapatınca toplam da değişir."),
 			new Entry("fiyat", "/kazanc fiyat", "Fiyatları hemen yenile",
 				"Değerler siteden yeniden alınır (normalde 15 dakikada bir kendiliğinden yenilenir). Bitince sohbete 'Fiyatlar yenilendi' (item sayısı, verinin yaşı) ya da hata yazılır. Eski fiyat kullanılıyorsa kutuda '⚠ Fiyatlar güncel değil' yazar."))),
 		new Group("Kontrol ve sorunlar", List.of(
@@ -69,7 +69,7 @@ public final class Help {
 
 	/** Things the mod does on its own, so the player knows what is and isn't counted. */
 	public static final List<String> NOTES = List.of(
-		"Sayılır: sack mesajlarındaki mining itemleri ve gemler, frozen corpse loot'u, /pickupstash ile gelenler.",
+		"Sayılır: sack mesajlarındaki mining itemleri ve gemler, frozen corpse loot'u (anahtar ayarı kapalıyken sadece Lapis), /pickupstash ile gelenler.",
 		"Oyunu kapatınca session biter ve Toplam'a eklenir; sonraki açışta özeti ve sack kontrolü gelir, yeni session /kazanc baslat ile başlar.",
 		"Sayılmaz: envanterden ya da Sack menüsünden sack'e koyulanlar, /craft ile yapılanlar, sack'ten alınanlar.",
 		"Değerler sitedeki Mining sekmesinin en kârlı yoluyla hesaplanır. Kutuyu T ile sohbeti açıp sürükleyebilir, köşesinden büyütebilirsin.");

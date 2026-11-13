@@ -18,6 +18,11 @@ public final class Breakdown {
 	public static final String OTHER = "Diğer";
 	public static final String FIESTA = "Fiesta";
 	public static final String CORPSE = "Corpse Loot";
+	/**
+	 * Loot of corpses that need a key (Tungsten/Umber/Vanguard), kept apart from Lapis loot: it
+	 * only counts while key costs are on (/kazanc anahtar), and then shows under Corpse Loot.
+	 */
+	public static final String KEYED = "Corpse Loot (anahtarlı)";
 
 	/** Order of the kinds inside a row: raw first, then Enchanted; gem tiers low to high. */
 	private static final List<String> UNIT_ORDER = List.of("", "Enchanted", "Rough", "Flawed", "Fine", "Flawless");
@@ -69,6 +74,30 @@ public final class Breakdown {
 
 	public void addCoins(String cat, String row, double coins) {
 		row(cat, row).coins += coins;
+	}
+
+	/**
+	 * What the box shows: with key costs on, keyed corpse loot joins Corpse Loot; with them off
+	 * it is left out (only Lapis corpses count then).
+	 */
+	public Breakdown view(boolean keys) {
+		Breakdown v = new Breakdown();
+		v.keys = keys ? keys() : new HashMap<>();
+		v.keyCoins = keys ? keyCoins : 0;
+		for (Map.Entry<String, Map<String, Row>> c : cats.entrySet()) {
+			if (c.getKey().equals(KEYED) && !keys) continue;
+			String cat = c.getKey().equals(KEYED) ? CORPSE : c.getKey();
+			for (Map.Entry<String, Row> r : c.getValue().entrySet()) {
+				Row to = v.row(cat, r.getKey());
+				to.coins += r.getValue().coins;
+				r.getValue().counts.forEach((u, n) -> to.counts.merge(u, n, Double::sum));
+			}
+		}
+		return v;
+	}
+
+	private Map<String, Double> keys() {
+		return keys == null ? new HashMap<>() : new HashMap<>(keys);
 	}
 
 	public double total(String cat) {

@@ -282,8 +282,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 					config.keyCost = !config.keyCost;
 					save();
 					return say(c, config.keyCost
-						? "Corpse anahtarları kazançtan düşülüyor (büyük kutuda Corpse Loot altında). Kapatmak için /kazanc anahtar."
-						: "Corpse anahtarları kazançtan düşülmüyor.");
+						? "Tüm corpse'lar sayılıyor, anahtarlar kazançtan düşülüyor (büyük kutuda Corpse Loot altında). Kapatmak için /kazanc anahtar."
+						: "Sadece Lapis corpse'ları sayılıyor (anahtar istemeyen). Tungsten/Umber/Vanguard için /kazanc anahtar.");
 				}))
 				.then(ClientCommands.literal("bosta")
 					.executes((c) -> say(c, config.idleSeconds > 0
