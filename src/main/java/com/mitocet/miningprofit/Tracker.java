@@ -311,7 +311,7 @@ public final class Tracker {
 						continue;
 					}
 					amount -= useCredit(item.id(), amount);
-					double byHand = fromInventory(item.id(), amount);
+					double byHand = fromInventory(item, amount, p);
 					amount -= byHand;
 					double stashed = fromStash(item, byHand);
 					if (menu) amount = 0;
@@ -570,13 +570,34 @@ public final class Tracker {
 		return back;
 	}
 
-	/** Of {@code amount} put into the sacks, how many had just left the inventory (and are used up here). */
-	private double fromInventory(String id, double amount) {
-		Change c = lost.get(id);
-		if (c == null || amount <= 0) return 0;
-		double used = Math.min(c.count, amount);
-		put(lost, id, c.count - used, c.since);
-		return used;
+	/**
+	 * Of {@code amount} put into the sacks, how many had just left the inventory (and are used up
+	 * here): the same items, or lower forms of the same family crafted into this one in the
+	 * inventory, whose product Hypixel puts straight into the sacks (e.g. 160 Coal crafted in the
+	 * inventory → "+1 Enchanted Coal" in the sacks). Higher forms that left are never taken off
+	 * (e.g. Enchanted Glacite into a forge does not cost the Glacite being mined).
+	 */
+	private double fromInventory(Prices.Item item, double amount, Prices p) {
+		if (amount <= 0) return 0;
+		double used = 0;
+		Change c = lost.get(item.id());
+		if (c != null) {
+			used = Math.min(c.count, amount);
+			put(lost, item.id(), c.count - used, c.since);
+		}
+		if (used >= amount || item.value() <= 0) return used;
+		double value = (amount - used) * item.value();
+		for (Map.Entry<String, Change> e : new ArrayList<>(lost.entrySet())) {
+			Prices.Item from = p.byId(e.getKey());
+			Change l = e.getValue();
+			if (from == null || from.id().equals(item.id()) || !item.family().equals(from.family())
+				|| from.value() <= 0 || from.value() >= item.value()) continue;
+			double v = Math.min(value, l.count * from.value());
+			value -= v;
+			put(lost, e.getKey(), l.count - v / from.value(), l.since);
+			if (value <= 1e-9) break;
+		}
+		return amount - Math.max(0, value) / item.value();
 	}
 
 	/**

@@ -16,7 +16,8 @@ class OreTest {
 		 "ENCHANTED_COAL":{"v":960,"fam":"ORE_COAL","name":"Enchanted Coal"},
 		 "ENCHANTED_COAL_BLOCK":{"v":153600,"fam":"ORE_COAL","name":"Enchanted Coal Block"},
 		 "INK_SACK:4":{"v":5,"fam":"ORE_LAPIS","name":"Lapis Lazuli"},
-		 "TUNGSTEN":{"v":100,"fam":"TUNGSTEN","name":"Tungsten"}
+		 "TUNGSTEN":{"v":100,"fam":"TUNGSTEN","name":"Tungsten"},
+		 "ENCHANTED_TUNGSTEN":{"v":16000,"fam":"TUNGSTEN","name":"Enchanted Tungsten"}
 		}}""");
 
 	private Tracker running() {
@@ -154,6 +155,56 @@ class OreTest {
 		t.onInventory(inv(), 5000);
 		assertEquals(0, t.onSackMessage(List.of("  +400 Coal (Mining Sack)"), 20_000), 1e-9);
 		assertEquals(400 * 6, t.sessionCoins, 1e-9);
+	}
+
+	@Test
+	void craftedInTheInventoryGoesStraightToTheSacks() {
+		Tracker t = running();
+		t.onInventory(inv(), 1000);
+		// Sacks full: 400 Coal into the inventory, counted.
+		assertEquals(400 * 6, t.onInventory(inv("Coal", 400), 1500), 1e-9);
+		// Two Enchanted Coal crafted from it in a menu; Hypixel puts them into the sacks.
+		t.onMenu(true, 2000);
+		t.onInventory(inv("Coal", 80), 2500);
+		t.onMenu(false, 3000);
+		assertEquals(0, t.onSackMessage(List.of("  +2 Enchanted Coal (Mining Sack)"), 30_000), 1e-9);
+		assertEquals(400 * 6, t.sessionCoins, 1e-9);
+		// Mining goes on into the (now not full) sacks: counted.
+		assertEquals(100 * 6, t.onSackMessage(List.of("  +100 Coal (Mining Sack)"), 60_000), 1e-9);
+	}
+
+	@Test
+	void craftedFromSomeHeldAndSomeMinedCountsTheRest() {
+		Tracker t = running();
+		t.onInventory(inv(), 1000);
+		t.onInventory(inv("Coal", 160), 1500);
+		t.onInventory(inv(), 2500); // crafted: +1 Enchanted Coal to the sacks
+		// The same message also has 200 Coal mined into the sacks.
+		assertEquals(200 * 6, t.onSackMessage(List.of("  +1 Enchanted Coal (Mining Sack)\n  +200 Coal (Mining Sack)"), 30_000), 1e-9);
+	}
+
+	@Test
+	void higherFormLeavingDoesNotCostMinedLowerForm() {
+		Tracker t = running();
+		t.onInventory(inv("Enchanted Coal", 3), 1000);
+		t.onInventory(inv(), 2000); // e.g. sold or used elsewhere
+		assertEquals(500 * 6, t.onSackMessage(List.of("  +500 Coal (Mining Sack)"), 20_000), 1e-9);
+	}
+
+	@Test
+	void autoCraftInTheInventoryToTheSacksIsNotCountedForOtherItemsEither() {
+		Tracker t = running();
+		t.onInventory(inv("Tungsten", 100), 1000);
+		// 60 more fell into the inventory (not counted, as before), then 160 were auto-crafted:
+		// Hypixel puts the Enchanted Tungsten straight into the sacks.
+		assertEquals(0, t.onInventory(inv("Tungsten", 160), 1500), 1e-9);
+		t.onInventory(inv(), 2000);
+		assertEquals(0, t.onSackMessage(List.of("  +1 Enchanted Tungsten (Mining Sack)"), 30_000), 1e-9);
+		// Supercraft (/craft) products are not counted either.
+		t.onChatLine("You Supercrafted Enchanted Tungsten x2!", 40_000);
+		assertEquals(0, t.onSackMessage(List.of("  +2 Enchanted Tungsten (Mining Sack)\n  -320 Tungsten (Mining Sack)"), 50_000), 1e-9);
+		// Mined into the sacks: counted.
+		assertEquals(300 * 100, t.onSackMessage(List.of("  +300 Tungsten (Mining Sack)"), 80_000), 1e-9);
 	}
 
 	@Test
