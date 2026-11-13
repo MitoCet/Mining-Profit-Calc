@@ -56,6 +56,14 @@ public final class Replay {
 					t.onSackMenu(kind.equals("sackmenu-open"), now);
 					continue;
 				}
+				case "menu-open", "menu-close" -> {
+					t.onMenu(kind.equals("menu-open"), now);
+					continue;
+				}
+				case "world" -> {
+					t.onWorldChange(now);
+					continue;
+				}
 				case "stash" -> {
 					t.onStashPickup(now);
 					continue;

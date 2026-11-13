@@ -18,6 +18,8 @@ public final class Breakdown {
 	public static final String OTHER = "Diğer";
 	public static final String FIESTA = "Fiesta";
 	public static final String CORPSE = "Corpse Loot";
+	/** Classic ores (Coal, Iron, Gold, Diamond, Lapis, Redstone, Emerald, Quartz, Obsidian). */
+	public static final String ORE = "Ore";
 	/**
 	 * Loot of corpses that need a key (Tungsten/Umber/Vanguard), kept apart from Lapis loot: it
 	 * only counts while key costs are on (/kazanc anahtar), and then shows under Corpse Loot.
@@ -25,7 +27,7 @@ public final class Breakdown {
 	public static final String KEYED = "Corpse Loot (anahtarlı)";
 
 	/** Order of the kinds inside a row: raw first, then Enchanted; gem tiers low to high. */
-	private static final List<String> UNIT_ORDER = List.of("", "Enchanted", "Rough", "Flawed", "Fine", "Flawless");
+	private static final List<String> UNIT_ORDER = List.of("", "Block", "Enchanted", "Enchanted Block", "Rough", "Flawed", "Fine", "Flawless");
 
 	public static final class Row {
 		public double coins;
@@ -147,6 +149,7 @@ public final class Breakdown {
 	/** Category of a mining family (fam in mod-values.json). */
 	public static String category(String family) {
 		if (family.startsWith("GEM_")) return GEMSTONE;
+		if (family.startsWith("ORE_")) return ORE;
 		return switch (family) {
 			case "MITHRIL", "TITANIUM", "TUNGSTEN", "UMBER" -> METAL;
 			case "GLOSSY_GEMSTONE", "REFINED_MINERAL" -> FIESTA;
@@ -156,12 +159,17 @@ public final class Breakdown {
 
 	/** Row name of a family: GEM_RUBY → Ruby, HARD_STONE → Hard Stone. */
 	public static String rowName(String family) {
-		return title(family.startsWith("GEM_") ? family.substring(4) : family);
+		return title(family.startsWith("GEM_") || family.startsWith("ORE_") ? family.substring(4) : family);
 	}
 
 	/** Kind of an item inside its row: Rough/Flawed/Fine/Flawless for gems, Enchanted or raw ("") otherwise. */
 	public static String unit(String id, String family) {
 		if (family.startsWith("GEM_")) return title(id.substring(0, id.indexOf('_')));
+		if (family.startsWith("ORE_")) {
+			boolean ench = id.startsWith("ENCHANTED_");
+			if (id.endsWith("_BLOCK")) return ench ? "Enchanted Block" : "Block";
+			return ench ? "Enchanted" : "";
+		}
 		return id.startsWith("ENCHANTED_") ? "Enchanted" : "";
 	}
 

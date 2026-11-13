@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
  *   Only Mining tab materials and gemstones count. Items put in from the inventory do not count;
  *   items from the stash do. Taking items out never counts negative, and crafting what was taken
  *   out (e.g. Glacite into Enchanted Glacite) and putting it back adds nothing (see onSackMessage).
+ * - Ores (Coal, Iron… families ORE_*) that land in the inventory, mostly because the sacks are
+ *   full: they count when they come in (see onInventory), not again when put into the sacks.
  * - Frozen corpse loot ("... CORPSE LOOT!" then "REWARDS"): every priced item counts, also those
  *   that land in the inventory. Mining items from the loot also show up in the next sack message,
  *   so they are remembered for a while and taken off that sack message.
@@ -38,6 +40,8 @@ public final class Tracker {
 	/** "TUNGSTEN CORPSE LOOT!": the word before is the corpse type, which says the key it used. */
 	private static final Pattern CORPSE_TYPE = Pattern.compile("(\\w+) CORPSE LOOT!");
 	/** The Resourceful perk kept the key. */
+	/** "Moved 64 Coal from your Sacks to your inventory." (/gfs): not mined. As SkyHanni's OwnInventoryData. */
+	private static final Pattern MOVED_FROM_SACKS = Pattern.compile("^Moved ([\\d,]+) (.+?) from your Sacks to your inventory\\.?$");
 	private static final Pattern KEY_SAVED = Pattern.compile("^LUCKY! Your Resourceful perk saved your key from being consumed!$");
 
 	private final Supplier<Prices> prices;
@@ -113,6 +117,7 @@ public final class Tracker {
 		gained.clear();
 		lost.clear();
 		usedInSacks.clear();
+		movedFromSacks.clear();
 	}
 
 	public void stop(long now) {
@@ -423,6 +428,68 @@ public final class Tracker {
 
 	private record Change(double count, long since) {}
 
+	// ---------- ores in the inventory ----------
+	// Rules as SkyHanni's OwnInventoryData (github.com/hannibal002/SkyHanni, LGPL-2.1): what comes
+	// into the inventory while a menu is open (or just after), just after a world change, or
+	// right after "Moved … from your Sacks" is not picked up.
+	/** After a menu closes, inventory changes this soon still come from it. */
+	public static final long MENU_MS = 1_000;
+	/** After a world change the inventory is filled again: not picked up. SkyHanni uses 3 s. */
+	public static final long WORLD_MS = 3_000;
+	/** After "Moved … from your Sacks", that item coming in this soon is from the sacks. */
+	public static final long MOVED_MS = 2_000;
+	private int menusOpen;
+	private long menuClosedAt = -1;
+	private long worldChangedAt = -1;
+	// Item name key -> until when it is ignored.
+	private final Map<String, Long> movedFromSacks = new HashMap<>();
+
+	/** True for an ore family (Coal, Iron…): counted when it comes into the inventory. */
+	public static boolean isOre(String family) {
+		return family != null && family.startsWith("ORE_");
+	}
+
+	/** Any menu (not chat) opened (true) or closed (false): the inventory changes are not mining. */
+	public void onMenu(boolean open, long now) {
+		if (open) menusOpen++;
+		else if (menusOpen > 0) {
+			menusOpen--;
+			menuClosedAt = now;
+		}
+	}
+
+	/** The player went to another world/server: the inventory is sent again, start over. */
+	public void onWorldChange(long now) {
+		worldChangedAt = now;
+		inventory = null;
+	}
+
+	/** True while what comes into the inventory cannot be mining (menu, world change). */
+	private boolean inventoryBusy(long now) {
+		return menusOpen > 0
+			|| (menuClosedAt >= 0 && now - menuClosedAt <= MENU_MS)
+			|| (worldChangedAt >= 0 && now - worldChangedAt <= WORLD_MS);
+	}
+
+	private boolean movedFromSacks(Prices.Item item, long now) {
+		movedFromSacks.values().removeIf((until) -> until < now);
+		return item.name() != null && movedFromSacks.containsKey(key(item.name()));
+	}
+
+	/** Ores that came into the inventory: counted like mined, less corpse loot already counted. */
+	private double earnOre(Prices.Item item, double count, long now) {
+		count -= useCredit(item.id(), count);
+		double coins = count * item.value();
+		if (coins <= 0) return 0;
+		String fam = item.family();
+		String cat = Breakdown.category(fam);
+		String row = Breakdown.rowName(fam);
+		note(cat, row, Breakdown.unit(item.id(), fam), count);
+		noteCoins(cat, row, coins);
+		earn(coins, now);
+		return coins;
+	}
+
 	/** /pickupstash was used: the items it brings into the inventory count when put into the sacks. */
 	public void onStashPickup(long now) {
 		stashPickupUntil = now + STASH_PICKUP_MS;
@@ -431,12 +498,14 @@ public final class Tracker {
 	/**
 	 * Feed the inventory now and then (item names with counts, the item on the cursor too).
 	 * Pass null when there is no inventory (no player), so the next look starts over.
+	 * Returns the coins counted (ores that came in, see the class comment).
 	 */
-	public void onInventory(List<Map.Entry<String, Integer>> stacks, long now) {
+	public double onInventory(List<Map.Entry<String, Integer>> stacks, long now) {
 		if (stacks == null) {
 			inventory = null;
-			return;
+			return 0;
 		}
+		double earned = 0;
 		Prices p = prices.get();
 		Map<String, Double> counts = new HashMap<>();
 		for (Map.Entry<String, Integer> s : stacks) {
@@ -460,6 +529,7 @@ public final class Tracker {
 				io[e.getValue() > 0 ? 0 : 1] += Math.abs(e.getValue()) * item.value();
 			}
 			boolean fromStash = now <= stashPickupUntil;
+			boolean busy = inventoryBusy(now);
 			for (Map.Entry<String, Double> e : diff.entrySet()) {
 				Prices.Item item = p.byId(e.getKey());
 				double d = e.getValue();
@@ -469,7 +539,11 @@ public final class Tracker {
 				double side = d > 0 ? io[0] : io[1];
 				double count = Math.abs(d) * (side > 0 ? 1 - crafted / side : 1);
 				if (count < 1e-9) continue;
-				if (d > 0 && fromStash) {
+				// Ores count as they come in (crafting between their forms nets out above), and
+				// not again when they go into the sacks (the "lost" pool below). Stash ones too.
+				if (d > 0 && isOre(item.family()) && running() && !busy && !movedFromSacks(item, now)) {
+					earned += earnOre(item, count, now);
+				} else if (d > 0 && fromStash && !isOre(item.family())) {
 					stash.merge(item.family(), count * item.value(), Double::sum);
 					stashSince = now;
 					continue;
@@ -481,6 +555,7 @@ public final class Tracker {
 			}
 		}
 		inventory = counts;
+		return earned;
 	}
 
 	/**
@@ -576,6 +651,11 @@ public final class Tracker {
 		String line = strip(raw).trim();
 		if (STASH_PICKUP.matcher(line).find()) {
 			onStashPickup(now);
+			return 0;
+		}
+		Matcher moved = MOVED_FROM_SACKS.matcher(line);
+		if (moved.matches()) {
+			movedFromSacks.put(key(moved.group(2)), now + MOVED_MS);
 			return 0;
 		}
 		Matcher sc = SUPERCRAFT.matcher(line);
