@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -68,6 +69,16 @@ public final class History {
 			return true;
 		}
 
+		/** Checks saved before v1.0.35 have no family on their items: fills it from the prices. */
+		public void fillFamilies(Prices p) {
+			if (!p.loaded()) return;
+			for (Item i : items) {
+				if (i.family != null) continue;
+				Prices.Item item = p.byId(i.id);
+				if (item != null) i.family = item.family();
+			}
+		}
+
 		/** Coins Düzelt would add now. */
 		public double missingCoins() {
 			double c = 0;
@@ -84,6 +95,8 @@ public final class History {
 		public long read;
 		/** Value of one at check time. */
 		public double value;
+		/** Family (fam in mod-values.json) for grouping in the menu; null in checks saved before v1.0.35. */
+		public String family;
 	}
 
 	public Session find(long start) {
@@ -112,6 +125,7 @@ public final class History {
 			i.api = d.api();
 			i.read = d.read();
 			i.value = item != null ? item.value() : 0;
+			i.family = item != null ? item.family() : null;
 			c.items.add(i);
 		}
 		c.missing = SackCheck.familyMissing(r.diffs(), p);
@@ -149,6 +163,8 @@ public final class History {
 	public static final int MUTED = 0xFFAAAAAA;
 	public static final int GOOD = 0xFF6BE36B;
 	public static final int BAD = 0xFFFF6B6B;
+	/** Category headings of the Fark list. */
+	public static final int CAT = 0xFF7FD4FF;
 
 	/** One line of the detail pane: text on the left, a value on the right (may be empty). */
 	public record Line(String text, String right, int color, int rightColor) {
@@ -204,20 +220,67 @@ public final class History {
 			out.add(Line.kv("API'ye göre gerçek", "~" + Format.count(c.modCoins + c.diffCoins), TEXT));
 			out.add(new Line("Fark (" + c.items.size() + " item, " + c.matched + " item tutuyor)",
 				(c.diffCoins >= 0 ? "+" : "") + Format.count(c.diffCoins), BAD, BAD));
-			for (Item i : c.items) {
-				long d = i.api - i.read;
-				// Inside a family that went up the minus ones are netted (Glacite crafted to Enchanted
-				// Glacite); a family that went down is never taken off.
-				boolean counted = c.missing != null && c.missing.containsKey(i.id);
-				String worth = (d >= 0 ? "+" : "") + Format.coins(d * i.value);
-				out.add(Line.of("  " + i.name + ": gerçek " + signed(i.api) + ", mod " + signed(i.read) + " · "
-					+ (counted ? worth : "(düşürülmez)"), MUTED));
-			}
+			fark(out, c);
 		}
 		if (c.fixedCoins > 0) out.add(Line.of("  ✔ Düzelt ile eklendi: +" + Format.count(c.fixedCoins), GOOD));
 		double m = c.missingCoins();
 		if (m > 0) out.add(Line.of("  Düzelt ile +" + Format.count(m) + " eklenebilir.", HEAD));
 		return out;
+	}
+
+	/**
+	 * The Fark list grouped like "Ne kazandım": category (Gemstone, Dwarven Metal, Diğer, Ore…) →
+	 * family with its net (Glacite + Enchanted Glacite) → its items. Netting is per family, so the
+	 * family line is what Düzelt adds; a family that went down shows "mod fazla · çıkarılmaz". Biggest first.
+	 */
+	static void fark(List<Line> out, Check c) {
+		Map<String, List<Item>> fams = new LinkedHashMap<>();
+		for (Item i : c.items) fams.computeIfAbsent(i.family != null ? i.family : "?" + i.id, k -> new ArrayList<>()).add(i);
+		Map<String, Double> net = new HashMap<>();
+		Map<String, Double> catTotal = new HashMap<>();
+		Map<String, List<String>> cats = new LinkedHashMap<>();
+		for (Map.Entry<String, List<Item>> e : fams.entrySet()) {
+			double v = 0;
+			for (Item i : e.getValue()) v += (i.api - i.read) * i.value;
+			net.put(e.getKey(), v);
+			String cat = e.getKey().startsWith("?") ? Breakdown.OTHER : Breakdown.category(e.getKey());
+			cats.computeIfAbsent(cat, k -> new ArrayList<>()).add(e.getKey());
+			if (counted(c, e.getValue())) catTotal.merge(cat, v, Double::sum);
+		}
+		List<String> catOrder = new ArrayList<>(cats.keySet());
+		catOrder.sort((a, b) -> Double.compare(catTotal.getOrDefault(b, 0.0), catTotal.getOrDefault(a, 0.0)));
+		for (String cat : catOrder) {
+			double t = catTotal.getOrDefault(cat, 0.0);
+			out.add(new Line("  " + cat, t > 0 ? "+" + Format.count(t) : "", CAT, CAT));
+			List<String> famOrder = cats.get(cat);
+			famOrder.sort((a, b) -> {
+				boolean ua = counted(c, fams.get(a)), ub = counted(c, fams.get(b));
+				if (ua != ub) return ua ? -1 : 1;
+				return Double.compare(net.get(b), net.get(a));
+			});
+			for (String fam : famOrder) {
+				List<Item> items = fams.get(fam);
+				items.sort((a, b) -> Double.compare(a.value, b.value));
+				boolean up = counted(c, items);
+				double v = net.get(fam);
+				String name = fam.startsWith("?") ? items.get(0).name : Breakdown.rowName(fam);
+				out.add(new Line("    " + name, up ? (v >= 0 ? "+" : "") + Format.coins(v) : "mod fazla · çıkarılmaz", TEXT, up ? GOOD : MUTED));
+				for (Item i : items) {
+					long d = i.api - i.read;
+					String unit = fam.startsWith("?") ? "" : Breakdown.unit(i.id, fam);
+					String label = unit.isEmpty() ? i.name : unit;
+					String worth = up ? " · " + (d >= 0 ? "+" : "") + Format.coins(d * i.value) : "";
+					out.add(Line.of("      " + label + ": gerçek " + signed(i.api) + ", mod " + signed(i.read) + worth, MUTED));
+				}
+			}
+		}
+	}
+
+	/** Whether Düzelt adds this family (it went up; netted, so every item of it is in missing). */
+	private static boolean counted(Check c, List<Item> items) {
+		if (c.missing == null) return false;
+		for (Item i : items) if (c.missing.containsKey(i.id)) return true;
+		return false;
 	}
 
 	static String signed(long n) {

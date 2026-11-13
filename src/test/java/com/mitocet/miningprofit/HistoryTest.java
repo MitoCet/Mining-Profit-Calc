@@ -140,4 +140,33 @@ class HistoryTest {
 		// Done once.
 		assertTrue(!c.renet(p));
 	}
+
+	@Test
+	void farkIsGroupedByCategoryAndFamily() throws Exception {
+		java.nio.file.Path dir = java.nio.file.Path.of("src/test/resources/history");
+		Prices p = Prices.parse(java.nio.file.Files.readString(dir.resolve("eski-kontrol-fiyat.json")));
+		History.Check c = new com.google.gson.Gson().fromJson(
+			java.nio.file.Files.readString(dir.resolve("eski-kontrol.json")), History.Check.class);
+		c.renet(p);
+		c.fillFamilies(p);
+		List<History.Line> out = new java.util.ArrayList<>();
+		History.fark(out, c);
+		List<String> text = new java.util.ArrayList<>();
+		for (History.Line l : out) text.add(l.text().strip() + (l.right().isEmpty() ? "" : " | " + l.right()));
+		// Categories first with their total, families with their net under them.
+		int gem = -1, other = -1, glacite = -1, onyx = -1;
+		for (int i = 0; i < text.size(); i++) {
+			if (text.get(i).startsWith("Gemstone | +")) gem = i;
+			if (text.get(i).startsWith("Diğer | ")) other = i;
+			if (text.get(i).startsWith("Glacite | +3,69M")) glacite = i;
+			if (text.get(i).equals("Onyx | mod fazla · çıkarılmaz")) onyx = i;
+		}
+		assertTrue(gem >= 0 && other > gem && glacite > other && onyx > gem && onyx < other, String.join("\n", text));
+		assertTrue(text.get(glacite + 1).startsWith("Glacite: gerçek -6.540"), text.get(glacite + 1));
+		assertTrue(text.get(glacite + 2).startsWith("Enchanted: gerçek +1.990"), text.get(glacite + 2));
+		// Category totals add up to the Fark.
+		double sum = 0;
+		for (History.Line l : out) if (l.color() == History.CAT && !l.right().isEmpty()) sum += Double.parseDouble(l.right().replace(".", ""));
+		assertEquals(c.diffCoins, sum, 3);
+	}
 }
