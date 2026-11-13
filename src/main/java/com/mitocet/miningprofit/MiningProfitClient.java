@@ -59,6 +59,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private DebugLog debug;
 	private volatile String pricesJson;
 	private String lastInventoryLogged;
+	private final java.util.Set<net.minecraft.client.gui.screens.Screen> openMenus =
+		java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+	// The world the inventory was last read in: a new one means the inventory is sent again.
+	private Object lastLevel;
 	private Hud hud;
 	private int ticks;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
@@ -135,6 +139,17 @@ public final class MiningProfitClient implements ClientModInitializer {
 		hud = new Hud(this);
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "box"), hud::render);
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+			// Any menu but chat: what comes into the inventory meanwhile is not mined (ores).
+			// A screen is initialised again on resize, so each one is counted once.
+			if (!(screen instanceof ChatScreen) && openMenus.add(screen)) {
+				tracker.onMenu(true, System.currentTimeMillis());
+				if (config.debugLog) debug.simple("menu-open", System.currentTimeMillis());
+				ScreenEvents.remove(screen).register((s) -> {
+					openMenus.remove(s);
+					tracker.onMenu(false, System.currentTimeMillis());
+					if (config.debugLog) debug.simple("menu-close", System.currentTimeMillis());
+				});
+			}
 			// While a Sack menu is open (and just after), sack changes are not mining.
 			if (Tracker.isSackMenu(screen.getTitle().getString())) {
 				tracker.onSackMenu(true, System.currentTimeMillis());
@@ -427,13 +442,19 @@ public final class MiningProfitClient implements ClientModInitializer {
 			tracker.onInventory(null, System.currentTimeMillis());
 			return;
 		}
+		if (client.level != lastLevel) {
+			lastLevel = client.level;
+			tracker.onWorldChange(System.currentTimeMillis());
+			if (config.debugLog) debug.simple("world", System.currentTimeMillis());
+		}
 		List<Map.Entry<String, Integer>> stacks = new ArrayList<>();
 		Inventory inv = player.getInventory();
 		for (int i = 0; i < inv.getContainerSize(); i++) add(stacks, inv.getItem(i));
 		// The item held on the cursor in a menu still belongs to the inventory.
 		add(stacks, player.containerMenu.getCarried());
 		long now = System.currentTimeMillis();
-		tracker.onInventory(stacks, now);
+		double ore = tracker.onInventory(stacks, now); // mining items picked up into the inventory
+		if (config.debugLog && ore > 0) debug.simple("inv-earn " + Math.round(ore), now);
 		if (config.debugLog) {
 			// Only mining items, and only when they changed.
 			List<Map.Entry<String, Integer>> mining = new ArrayList<>();
