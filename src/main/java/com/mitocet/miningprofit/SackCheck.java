@@ -60,16 +60,88 @@ public final class SackCheck {
 	/** The missing items are from before the base (the previous game's session, after rebase). */
 	public boolean missingBeforeBase;
 
-	/** Missing items to add now: positive differences only (earnings never go down). */
-	public void setMissing(List<Diff> diffs) {
-		setMissing(diffs, false);
+	/** Missing items to add now: families whose value went up (earnings never go down), see {@link #familyMissing}. */
+	public void setMissing(List<Diff> diffs, Prices p) {
+		setMissing(diffs, p, false);
 	}
 
-	public void setMissing(List<Diff> diffs, boolean ended) {
-		missing = new HashMap<>();
+	public void setMissing(List<Diff> diffs, Prices p, boolean ended) {
+		missing = familyMissing(diffs, p);
 		missingEnded = ended;
 		missingBeforeBase = false;
-		for (Diff d : diffs) if (d.missing() > 0) missing.put(d.id(), d.missing());
+	}
+
+	/**
+	 * The differences netted per family (Glacite + Enchanted Glacite, Rough/Flawed/Fine Jade…), since
+	 * a craft moves value inside a family: a lost Supercraft message shows as "too much Glacite, too
+	 * few Enchanted Glacite" although nothing is wrong with the earnings. Only families whose value
+	 * went up are kept (earnings never go down); inside such a family every difference is kept, also
+	 * the negative ones, so the sum is the family's net. Item id -> count.
+	 */
+	public static Map<String, Long> familyMissing(List<Diff> diffs, Prices p) {
+		return familyMissing(diffs, p, id -> value(id, p));
+	}
+
+	/** Same, with the value of one item from {@code valueOf} (stored at check time for saved sessions). */
+	public static Map<String, Long> familyMissing(List<Diff> diffs, Prices p, java.util.function.ToDoubleFunction<String> valueOf) {
+		Map<String, Double> net = new HashMap<>();
+		for (Diff d : diffs) net.merge(family(d.id(), p), d.missing() * valueOf.applyAsDouble(d.id()), Double::sum);
+		Map<String, Long> out = new HashMap<>();
+		for (Diff d : diffs) {
+			if (d.missing() != 0 && net.get(family(d.id(), p)) >= 1) out.put(d.id(), d.missing());
+		}
+		return out;
+	}
+
+	/** Coins the missing items are worth (the families' net). */
+	public static double missingCoins(Map<String, Long> missing, Prices p) {
+		double c = 0;
+		for (Map.Entry<String, Long> e : missing.entrySet()) c += e.getValue() * value(e.getKey(), p);
+		return c;
+	}
+
+	/** What Düzelt adds for one family: its net value, as a count of its item that went up the most. */
+	public record Fix(Prices.Item item, double count, double coins) {}
+
+	/**
+	 * Turns the missing items into what Düzelt adds: one line per family that went up, so the box
+	 * never shows negative counts. {@code valueOf} gives the value of one item (stored at check time
+	 * for saved sessions).
+	 */
+	public static List<Fix> fixes(Map<String, Long> missing, Prices p, java.util.function.ToDoubleFunction<String> valueOf) {
+		Map<String, Double> net = new java.util.TreeMap<>();
+		Map<String, String> top = new HashMap<>();
+		Map<String, Double> topCoins = new HashMap<>();
+		for (Map.Entry<String, Long> e : missing.entrySet()) {
+			String id = e.getKey();
+			if (p.byId(id) == null) continue;
+			double coins = e.getValue() * valueOf.applyAsDouble(id);
+			String fam = family(id, p);
+			net.merge(fam, coins, Double::sum);
+			if (coins > topCoins.getOrDefault(fam, 0.0)) {
+				topCoins.put(fam, coins);
+				top.put(fam, id);
+			}
+		}
+		List<Fix> out = new ArrayList<>();
+		for (Map.Entry<String, Double> e : net.entrySet()) {
+			String id = top.get(e.getKey());
+			if (e.getValue() <= 0 || id == null) continue;
+			double value = valueOf.applyAsDouble(id);
+			if (value <= 0) continue;
+			out.add(new Fix(p.byId(id), e.getValue() / value, e.getValue()));
+		}
+		return out;
+	}
+
+	private static String family(String id, Prices p) {
+		Prices.Item item = p.byId(id);
+		return item != null && item.family() != null ? item.family() : id;
+	}
+
+	private static double value(String id, Prices p) {
+		Prices.Item item = p.byId(id);
+		return item != null ? item.value() : 0;
 	}
 
 	/**
@@ -170,6 +242,7 @@ public final class SackCheck {
 		Map<String, Long> seen = new HashMap<>(read);
 		corpse.forEach((id, n) -> seen.merge(id, n, Long::sum));
 		TreeSet<String> ids = new TreeSet<>(seen.keySet());
+		ids.addAll(corpse.keySet());
 		boolean unchanged = true;
 		TreeSet<String> all = new TreeSet<>(base.keySet());
 		all.addAll(now.keySet());
@@ -186,9 +259,12 @@ public final class SackCheck {
 		long matched = 0;
 		for (String id : ids) {
 			long api = now.getOrDefault(id, 0L) - base.getOrDefault(id, 0L);
-			long r = seen.getOrDefault(id, 0L);
-			if (api == r) matched++;
-			else diffs.add(new Diff(id, api, r));
+			long lo = read.getOrDefault(id, 0L);
+			long hi = seen.getOrDefault(id, 0L);
+			// Corpse loot may have gone into the inventory (sacks full, or items the sacks do not take,
+			// like Flawless gems): anything between "without" and "with" the corpse items is right.
+			if (api >= Math.min(lo, hi) && api <= Math.max(lo, hi)) matched++;
+			else diffs.add(new Diff(id, api, api > hi ? hi : lo));
 		}
 		// Nothing changed in the API although sack messages came: Hypixel has not saved yet.
 		boolean behind = unchanged && !seen.isEmpty();

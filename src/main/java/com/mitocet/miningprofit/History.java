@@ -38,13 +38,35 @@ public final class History {
 		public long matched;
 		/** Earnings the mod counted when checked. */
 		public double modCoins;
-		/** Value of the differences (API - mod); can be negative (never taken off). */
+		/** Value of the differences (API - mod), netted per family; only families that went up (never taken off). */
 		public double diffCoins;
 		public List<Item> items = new ArrayList<>();
-		/** Items to add with Düzelt (positive differences, item id -> count). Empty after adding. */
+		/** Items to add with Düzelt (differences of the families that went up, item id -> count). Empty after adding. */
 		public Map<String, Long> missing = new HashMap<>();
 		/** Düzelt added this much (0 = not fixed). */
 		public double fixedCoins;
+		/** missing and diffCoins are netted per family (checks saved before v1.0.34 were not). */
+		public boolean netted;
+
+		/**
+		 * A check saved by an older version kept every positive difference for Düzelt and summed all
+		 * differences for the Fark, so the two did not agree. Nets them per family again, with the
+		 * values stored at check time. Only while nothing was added from it.
+		 */
+		public boolean renet(Prices p) {
+			if (netted || !p.loaded()) return false;
+			netted = true;
+			if (fixedCoins > 0 || items.isEmpty()) return true;
+			List<SackCheck.Diff> diffs = new ArrayList<>();
+			Map<String, Double> values = new HashMap<>();
+			for (Item i : items) {
+				diffs.add(new SackCheck.Diff(i.id, i.api, i.read));
+				values.put(i.id, i.value);
+			}
+			missing = SackCheck.familyMissing(diffs, p, id -> values.getOrDefault(id, 0.0));
+			diffCoins = missingCoins();
+			return true;
+		}
 
 		/** Coins Düzelt would add now. */
 		public double missingCoins() {
@@ -91,9 +113,10 @@ public final class History {
 			i.read = d.read();
 			i.value = item != null ? item.value() : 0;
 			c.items.add(i);
-			c.diffCoins += d.missing() * i.value;
-			if (d.missing() > 0) c.missing.put(d.id(), d.missing());
 		}
+		c.missing = SackCheck.familyMissing(r.diffs(), p);
+		c.diffCoins = SackCheck.missingCoins(c.missing, p);
+		c.netted = true;
 		return c;
 	}
 
@@ -102,6 +125,7 @@ public final class History {
 		if (c == null) return "kontrol yok";
 		if (c.fixedCoins > 0 && c.missingCoins() <= 0) return "✔ düzeltildi (+" + Format.coins(c.fixedCoins) + ")";
 		if (c.items.isEmpty()) return "✔ sack ile aynı";
+		if (c.diffCoins <= 0 && c.fixedCoins <= 0) return "✔ eksik yok";
 		return "⚠ sack farkı " + (c.diffCoins >= 0 ? "+" : "") + Format.coins(c.diffCoins);
 	}
 
@@ -182,8 +206,12 @@ public final class History {
 				(c.diffCoins >= 0 ? "+" : "") + Format.count(c.diffCoins), BAD, BAD));
 			for (Item i : c.items) {
 				long d = i.api - i.read;
+				// Inside a family that went up the minus ones are netted (Glacite crafted to Enchanted
+				// Glacite); a family that went down is never taken off.
+				boolean counted = c.missing != null && c.missing.containsKey(i.id);
+				String worth = (d >= 0 ? "+" : "") + Format.coins(d * i.value);
 				out.add(Line.of("  " + i.name + ": gerçek " + signed(i.api) + ", mod " + signed(i.read) + " · "
-					+ (d > 0 ? "+" + Format.coins(d * i.value) : "(düşürülmez)"), MUTED));
+					+ (counted ? worth : "(düşürülmez)"), MUTED));
 			}
 		}
 		if (c.fixedCoins > 0) out.add(Line.of("  ✔ Düzelt ile eklendi: +" + Format.count(c.fixedCoins), GOOD));
