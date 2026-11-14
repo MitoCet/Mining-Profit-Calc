@@ -52,6 +52,10 @@ public final class History {
 		public List<Item> hand = new ArrayList<>();
 		public long handFrom;
 		public long handTo;
+		/** Items picked up from the material stash (a note only, they count) and when (ms, 0 = none). */
+		public long stashItems;
+		public long stashFrom;
+		public long stashTo;
 		/** What Düzelt added (item id -> count), so the Fark list still shows those families as added. */
 		public Map<String, Long> fixed = new HashMap<>();
 		/** Families whose hand-put items are taken off Düzelt (clicked in /kazanc gecmis). */
@@ -231,6 +235,9 @@ public final class History {
 		c.hand.sort((a, b) -> Double.compare(b.api * b.value, a.api * a.value));
 		c.handFrom = sc.handFrom;
 		c.handTo = sc.handTo;
+		c.stashItems = sc.stashItems;
+		c.stashFrom = sc.stashFrom;
+		c.stashTo = sc.stashTo;
 		if (before != null && before.handOff != null) c.handOff.addAll(before.handOff);
 		if (allOff) for (Item h : c.hand) c.handOff.add(Check.famKey(h));
 	}
@@ -329,6 +336,7 @@ public final class History {
 			out.add(new Line("Fark (" + c.items.size() + " item, " + c.matched + " item tutuyor)",
 				(c.diffCoins >= 0 ? "+" : "") + Format.count(c.diffCoins), BAD, BAD));
 			handWarning(out, c);
+			stashNote(out, c);
 			fark(out, c);
 		}
 		if (c.fixedCoins > 0) out.add(Line.of("  ✔ Düzelt ile eklendi: +" + Format.count(c.fixedCoins), GOOD));
@@ -337,6 +345,13 @@ public final class History {
 		if (m > 0) out.add(Line.of("  Düzelt ile +" + Format.count(m) + " eklenebilir"
 			+ (off >= 1 ? " (elle konan " + Format.coins(off) + " çıkarıldı)." : "."), HEAD));
 		return out;
+	}
+
+	/** Material stash pickups: a gray note, not a warning (Mito: they are mined, they count). */
+	static void stashNote(List<Line> out, Check c) {
+		if (c.stashFrom <= 0) return;
+		String when = clock(c.stashFrom) + (c.stashTo > 0 && !clock(c.stashTo).equals(clock(c.stashFrom)) ? "–" + clock(c.stashTo) : "");
+		out.add(Line.of("  Not: stash'ten sack'e " + Format.count(c.stashItems) + " item geçti (" + when + "), Fark'ta sayıldı.", MUTED));
 	}
 
 	/** Tells what was put into the sacks by hand without a sack message (Mito: say what and how many). */

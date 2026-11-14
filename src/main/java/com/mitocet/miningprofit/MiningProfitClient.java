@@ -438,6 +438,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		for (String line : Tracker.lines(text)) {
+			config.sackCheck.onChatLine(Tracker.strip(line), now);
 			boolean corpse = tracker.corpseOpen();
 			long warned = tracker.warningCount;
 			double coins = tracker.onChatLine(line, now);
