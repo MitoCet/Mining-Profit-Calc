@@ -179,7 +179,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 
 		menuKey = net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper.registerKeyMapping(new net.minecraft.client.KeyMapping(
 			"key.miningprofit.menu", com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM,
-			com.mojang.blaze3d.platform.InputConstants.UNKNOWN.getValue(), net.minecraft.client.KeyMapping.Category.MISC));
+			com.mojang.blaze3d.platform.InputConstants.UNKNOWN.getValue(),
+			// Own section in Controls → Key Binds, like other mods (label: key.category.miningprofit.main).
+			net.minecraft.client.KeyMapping.Category.register(Identifier.fromNamespaceAndPath("miningprofit", "main"))));
 
 		// Closing the game ends the session like /kazanc bitir; the next join tells about it (no new session).
 		ClientLifecycleEvents.CLIENT_STOPPING.register((client) -> {
@@ -192,7 +194,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
 			if (ticks % 10 == 0) readInventory(client);
 			autoCheckTick(client);
-			// The menu key (Controls → Misc, unbound by default).
+			// The menu key (Controls → Mining Profit Calc, unbound by default).
 			while (menuKey.consumeClick()) {
 				if (client.player != null) client.gui.setScreen(new SettingsScreen(this));
 			}
