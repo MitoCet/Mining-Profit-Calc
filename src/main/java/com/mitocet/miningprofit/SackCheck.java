@@ -77,19 +77,34 @@ public final class SackCheck {
 	/** First and last time something went into {@link #hand} (ms, 0 = none). */
 	public long handFrom;
 	public long handTo;
-	/** Last material stash pickup (its items go into the sacks without a sack message; count unknown). 0 = none. */
-	public long stashAt;
+
+	/**
+	 * Material stash pickups (Mito, 2026-11-14: only a note, they count): their items go into the
+	 * sacks without a sack message, the API check sees them and Düzelt adds them; Hypixel does not
+	 * say which items. Count of items, and the first and last pickup (ms, 0 = none).
+	 */
+	public long stashItems;
+	public long stashFrom;
+	public long stashTo;
+	/** "You picked up 2,000 items from your material stash!" (as SkyHanni's stash messages). */
+	public static final java.util.regex.Pattern STASH_LINE =
+		java.util.regex.Pattern.compile("^You picked up ([\\d,]+) items? from your material stash!?$");
+
+	/** A chat line (colors stripped): a material stash pickup is noted. */
+	public void onChatLine(String line, long now) {
+		if (base == null) return;
+		Matcher m = STASH_LINE.matcher(line.trim());
+		if (!m.matches()) return;
+		stashItems += Math.round(Tracker.number(m.group(1)));
+		if (stashFrom == 0) stashFrom = now;
+		stashTo = now;
+	}
 
 	/** Mining items that left the inventory into a Sack menu (item id -> count). */
 	public void onHandDeposit(String id, long count, long now) {
 		if (base == null || count <= 0) return;
 		handPending.merge(id, count, Long::sum);
 		handPendingAt = now;
-	}
-
-	/** /pickupstash: what it puts into the sacks gives no sack message, the amount is not known. */
-	public void onStash(long now) {
-		if (base != null) stashAt = now;
 	}
 
 	/** Server change: the sack message still to come is lost, what it would have shown is at risk. */
@@ -224,7 +239,6 @@ public final class SackCheck {
 		hand = new HashMap<>();
 		handFrom = 0;
 		handTo = 0;
-		stashAt = 0;
 		return out;
 	}
 
@@ -254,7 +268,9 @@ public final class SackCheck {
 		hand = new HashMap<>();
 		handFrom = 0;
 		handTo = 0;
-		stashAt = 0;
+		stashItems = 0;
+		stashFrom = 0;
+		stashTo = 0;
 	}
 
 	/** A mining item from corpse loot (it goes into the sacks; a sack message may or may not follow). */

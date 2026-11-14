@@ -140,7 +140,6 @@ public final class MiningProfitClient implements ClientModInitializer {
 			if (command.trim().toLowerCase(java.util.Locale.ROOT).startsWith("pickupstash")) {
 				long now = System.currentTimeMillis();
 				tracker.onStashPickup(now);
-				config.sackCheck.onStash(now);
 				if (config.debugLog) debug.simple("stash", now);
 			}
 		});
@@ -439,6 +438,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		for (String line : Tracker.lines(text)) {
+			config.sackCheck.onChatLine(Tracker.strip(line), now);
 			boolean corpse = tracker.corpseOpen();
 			long warned = tracker.warningCount;
 			double coins = tracker.onChatLine(line, now);
@@ -723,7 +723,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		say(src, "Mod: " + Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins)
 			+ "§r (fark " + (missingCoins >= 0 ? "+" : "") + Format.coins(missingCoins) + ").");
 		if (canFix) src.sendFeedback(fixHint());
-		if (!hc.hand.isEmpty() || hc.stashAt > 0) say(src, "§6⚠ Sack'e elle koyduğun ya da stash'ten gelen itemlerin sack mesajı gelmedi; Fark'a girmiş olabilirler. /kazanc gecmis'te o aileye tıklayıp Düzelt'ten çıkarabilirsin.");
+		if (!hc.hand.isEmpty()) say(src, "§6⚠ Sack'e elle koyduğun itemlerin sack mesajı gelmedi; Fark'a girmiş olabilirler. /kazanc gecmis'te o aileye tıklayıp Düzelt'ten çıkarabilirsin.");
 		say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Sunucu ya da Mineshaft değiştirince son sack mesajı gelmeyebilir; kalıcı fark çoğu zaman budur (ya da mesaj iki kez okunmuştur, /kazanc kayit). Envanterden sack'e koyduğun ya da sack'ten sattığın itemler de API farkına girer.");
 		long before = tracker.warningCount;
 		// Only the newest difference stays in the warnings.
@@ -763,6 +763,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (coins > 0) tracker.clearApiWarnings();
 		if (config.liveCheck != null) {
 			config.liveCheck.fixedCoins += coins;
+			if (coins > 0) missing.forEach((id, n) -> config.liveCheck.fixed.merge(id, n, Long::sum));
 			config.liveCheck.missing = new java.util.HashMap<>();
 		}
 		save();
@@ -817,6 +818,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 				parts.add(fixText(f));
 			}
 			c.fixedCoins += coins;
+			if (coins > 0) {
+				if (c.fixed == null) c.fixed = new java.util.HashMap<>();
+				c.withoutHand(c.missing).forEach((id, n) -> c.fixed.merge(id, n, Long::sum));
+			}
 			c.missing = new java.util.HashMap<>();
 		}
 		if (coins > 0) tracker.clearApiWarnings();

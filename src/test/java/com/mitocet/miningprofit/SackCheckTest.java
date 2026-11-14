@@ -290,4 +290,40 @@ class SackCheckTest {
 		History.fark(lines, c);
 		assertTrue(lines.stream().anyMatch(l -> "GLACITE".equals(l.click()) && l.text().contains("geri al")));
 	}
+
+	/** After Düzelt the families stay listed with what was added (not "mod fazla · çıkarılmaz"). */
+	@Test
+	void fixedFamiliesStillShowTheirAmount() {
+		SackCheck s = started();
+		SackCheck.Result r = s.compare(Map.of("TUNGSTEN", 1100L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L), PRICES);
+		History.Check c = History.check(r, 0, PRICES, 10_000);
+		c.fixed.putAll(c.missing);
+		c.fixedCoins = 10_000;
+		c.missing = new java.util.HashMap<>();
+		List<History.Line> lines = new java.util.ArrayList<>();
+		History.fark(lines, c);
+		assertTrue(lines.stream().anyMatch(l -> l.text().contains("Tungsten") && l.right().equals("+10,0k ✔")), lines.toString());
+		assertTrue(lines.stream().noneMatch(l -> l.right().contains("mod fazla")));
+		// A check fixed by an older version (no record of what was added) looks the same.
+		c.fixed.clear();
+		lines.clear();
+		History.fark(lines, c);
+		assertTrue(lines.stream().anyMatch(l -> l.right().endsWith("✔")));
+	}
+
+	@Test
+	void stashPickupIsOnlyANote() {
+		SackCheck s = started();
+		s.onChatLine("You picked up 1,280 items from your material stash!", 1_000);
+		s.onChatLine("You picked up 20 items from your material stash!", 2_000);
+		assertEquals(1_300, s.stashItems);
+		SackCheck.Result r = s.compare(Map.of("TUNGSTEN", 1100L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L), PRICES);
+		History.Check c = History.check(r, 0, PRICES, 10_000);
+		History.addHand(c, s, null, false, PRICES);
+		assertEquals(10_000, c.missingCoins(), 1e-6); // counted, nothing taken off
+		List<History.Line> lines = new java.util.ArrayList<>();
+		History.stashNote(lines, c);
+		assertTrue(lines.get(0).text().contains("1.300 item"), lines.toString());
+		assertEquals(History.MUTED, lines.get(0).color());
+	}
 }
