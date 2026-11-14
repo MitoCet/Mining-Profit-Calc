@@ -65,7 +65,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 	private Object lastLevel;
 	private Hud hud;
 	private ListHud listHud;
-	/** The forge plan's shopping list (/kazanc liste); null = none loaded. */
+	/** The forge plan's shopping list (/kazanc forge); null = none loaded. */
 	public ShoppingList shoppingList;
 	/** The open ender chest page / backpack / vault ("ec:2"…), read with the inventory; null = none open. */
 	private String storageOpen;
@@ -437,7 +437,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 							? "Oyun açılınca yeni sürüm varsa indirilsin mi diye sorulacak."
 							: "Açılışta yeni sürüm sorusu kapalı. /kazanc update ile yine bakabilirsin.");
 					})))
-				.then(ClientCommands.literal("liste")
+				.then(ClientCommands.literal("forge")
 					.executes((c) -> listToggle(c))
 					.then(ClientCommands.argument("islem", com.mojang.brigadier.arguments.StringArgumentType.word()).executes((c) ->
 						listCommand(c, com.mojang.brigadier.arguments.StringArgumentType.getString(c, "islem").toLowerCase(java.util.Locale.ROOT)))))
@@ -624,13 +624,13 @@ public final class MiningProfitClient implements ClientModInitializer {
 		return Command.SINGLE_SUCCESS;
 	}
 
-	// ---------- forge plan shopping list (/kazanc liste) ----------
+	// ---------- forge plan shopping list (/kazanc forge) ----------
 	private int listToggle(CommandContext<FabricClientCommandSource> c) {
-		if (shoppingList == null) return say(c, "Yüklü liste yok. Sitede Mining kârları → Forge planı → 'Mod için kopyala', sonra /kazanc liste yukle.");
+		if (shoppingList == null) return say(c, "Yüklü liste yok. Sitede Mining kârları → Forge planı → 'Mod için kopyala', sonra /kazanc forge yukle.");
 		config.listVisible = !config.listVisible;
 		save();
 		if (config.listVisible && !shoppingList.baseLoaded && hasKey()) loadListBase(c.getSource());
-		return say(c, config.listVisible ? "Liste solda gösteriliyor. T ile sohbeti açıp satırlara tıklayabilirsin." : "Liste gizlendi. /kazanc liste ile tekrar açılır.");
+		return say(c, config.listVisible ? "Liste solda gösteriliyor. T ile sohbeti açıp satırlara tıklayabilirsin." : "Liste gizlendi. /kazanc forge ile tekrar açılır.");
 	}
 
 	private int listCommand(CommandContext<FabricClientCommandSource> c, String op) {
@@ -682,7 +682,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				return say(c, "Liste gizlendi.");
 			}
 			default -> {
-				return say(c, "Kullanım: /kazanc liste (aç/kapa), /kazanc liste yukle | yenile | sil");
+				return say(c, "Kullanım: /kazanc forge (aç/kapa), /kazanc forge yukle | yenile | sil");
 			}
 		}
 	}

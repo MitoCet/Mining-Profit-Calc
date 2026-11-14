@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The forge plan's shopping list, on the left of the screen (/kazanc liste). While the chat is open (T),
+ * The forge plan's shopping list, on the left of the screen (/kazanc forge). While the chat is open (T),
  * a craft row opens that item's recipe (/viewrecipe, Supercraft from there), a buy row opens the
  * Bazaar search (/bz name) and copies the amount still to buy, [x] hides the box. One command per click,
  * nothing automatic (like SkyHanni's visitor shopping list, BazaarApi.searchForBazaarItem; LGPL-2.1).
@@ -87,7 +87,7 @@ public final class ListHud {
 		ShoppingList.Line l = lineAt(mx, my);
 		if (l == null) return false;
 		if (lines.indexOf(l) == 0 && mx >= X + width - PAD - 20) {
-			mod.runCommand("liste");
+			mod.runCommand("forge");
 			return true;
 		}
 		if (l.row() == null) return true;

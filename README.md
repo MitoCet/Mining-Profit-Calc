@@ -55,14 +55,14 @@ Biten her session (`/kazanc bitir` ya da oyunu kapatınca) kaydedilir; kazancı 
 - **Anahtarlı corpse: Sayılıyor/Sayılmıyor** (listenin altında): `/kazanc anahtar` ile aynı ayar; basınca menüdeki tutarlar, kutu ve Toplam hemen değişir (geriye dönük).
 - **Sil**: onay sorar, session'ı siler ve Toplam'dan çıkarır. **Hepsini sil** = `/kazanc sifirla`.
 
-### Forge planı listesi (`/kazanc liste`)
+### Forge planı (`/kazanc forge`)
 
-Sitede Mining kârları → Forge planı'nda boş slotlar için plan yap (öneri gelir, değiştirebilirsin), "Mod için kopyala"ya bas, oyunda `/kazanc liste yukle` yaz (menüde "Listeyi panodan yükle"). Solda liste çıkar; kazanç sayımından bağımsızdır, `/kazanc liste` ile göster/gizle.
+Sitede Mining kârları → Forge planı'nda boş slotlar için plan yap (öneri gelir, değiştirebilirsin), "Mod için kopyala"ya bas, oyunda `/kazanc forge yukle` yaz (menüde "Forge planını panodan yükle"). Solda liste çıkar; kazanç sayımından bağımsızdır, `/kazanc forge` ile göster/gizle.
 
 - **Craftla**: T ile sohbeti açıp tıkla → o itemin tarif ekranı açılır (`/viewrecipe`), Supercraft oradan.
 - **Satın al**: tıkla → Bazaar'da item açılır (`/bz <isim>`), kalan miktar panoya kopyalanır.
 - **Sende yeterli**: yeteri kadar olunca yeşil ✔. Aynı itemin craftlanacak ve alınacak kısmı ayrı satırdır.
-- Sayılan: sack'ler (yüklerken API'den, sonra sack mesajlarıyla), ender chest sayfaları, backpack'ler, personal vault (yüklerken API'den, açtığın sayfa her açılışta okunur) ve envanter. `/kazanc liste yenile` API'den tekrar alır, `/kazanc liste sil` siler.
+- Sayılan: sack'ler (yüklerken API'den, sonra sack mesajlarıyla), ender chest sayfaları, backpack'ler, personal vault (yüklerken API'den, açtığın sayfa her açılışta okunur) ve envanter. `/kazanc forge yenile` API'den tekrar alır, `/kazanc forge sil` siler.
 - Her tıklama tek bir komut gönderir, otomatik hiçbir şey yapılmaz. Bazaar araması + miktarı panoya kopyalama yöntemi SkyHanni'den (BazaarApi.searchForBazaarItem, LGPL-2.1).
 
 ## Neyi sayar

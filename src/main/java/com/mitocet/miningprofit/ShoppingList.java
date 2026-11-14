@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 
 /**
  * The forge plan from the site (Mining → Forge planı → "Mod için kopyala", read from the clipboard by
- * /kazanc liste yukle) and how much of each item the player has now.
+ * /kazanc forge yukle) and how much of each item the player has now.
  *
  * Rows: c = craft (click opens /viewrecipe), b = buy (click opens /bz and copies the amount),
  * x = crystal (can't be bought, must be held), h = already enough. The same item can have a craft
