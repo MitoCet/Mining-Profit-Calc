@@ -57,9 +57,9 @@ Biten her session (`/kazanc bitir` ya da oyunu kapatınca) kaydedilir; kazancı 
 
 ### Forge planı (`/kazanc forge`)
 
-Sitede Mining kârları → Forge planı'nda boş slotlar için plan yap (öneri gelir, değiştirebilirsin), "Mod için kopyala"ya bas, oyunda `/kazanc forge yukle` yaz (menüde "Forge planını panodan yükle"). Solda liste çıkar; kazanç sayımından bağımsızdır, `/kazanc forge` ile göster/gizle.
+Sitede Mining kârları → Forge planı'nda boş slotlar için plan yap (öneri gelir, değiştirebilirsin), "Mod için kopyala"ya bas, oyunda `/kazanc forge yukle` yaz (menüde "Forge planını panodan yükle"). Solda liste çıkar; kazanç sayımından bağımsızdır, `/kazanc forge` ile göster/gizle. Envanter (E) ya da bir menü (forge, chest, sack…) açıkken liste o menünün tam soluna yapışır, üstü menünün üstüyle hizalı; yer yoksa küçülür, yarı boyuttan da küçük kalacaksa o menüde gizlenir. Menü açıkken satırlara direkt tıklanır (T ile sohbet de olur). Menünün yeri SkyHanni'nin okuduğu alanlardan (`AbstractContainerScreen.leftPos/topPos`, skyhanni.classtweaker, LGPL-2.1).
 
-- **Craftla**: T ile sohbeti açıp tıkla → o itemin tarif ekranı açılır (`/viewrecipe`), Supercraft oradan.
+- **Craftla**: envanter/menü açıkken tıkla → o itemin tarif ekranı açılır (`/viewrecipe`), Supercraft oradan.
 - **Satın al**: tıkla → Bazaar'da item açılır (`/bz <isim>`), kalan miktar panoya kopyalanır.
 - **Sende yeterli**: yeteri kadar olunca yeşil ✔. Aynı itemin craftlanacak ve alınacak kısmı ayrı satırdır.
 - Sayılan: sack'ler (yüklerken API'den, sonra sack mesajlarıyla), ender chest sayfaları, backpack'ler, personal vault (yüklerken API'den, açtığın sayfa her açılışta okunur) ve envanter. `/kazanc forge yenile` API'den tekrar alır, `/kazanc forge sil` siler.

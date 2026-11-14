@@ -1,0 +1,7 @@
+classTweaker v1 official
+
+# Where the open inventory/menu sits on screen, so the forge list can sit flush on its left
+# (same fields SkyHanni opens in skyhanni.classtweaker, LGPL-2.1).
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen leftPos I
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen topPos I
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen imageHeight I
