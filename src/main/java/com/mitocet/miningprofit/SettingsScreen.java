@@ -35,6 +35,7 @@ public final class SettingsScreen extends Screen {
 	private Button keyDelete;
 	private Button notify;
 	private Button log;
+	private Button list;
 	private EditBox keyBox;
 
 	private int colW;
@@ -111,6 +112,14 @@ public final class SettingsScreen extends Screen {
 		add(colX[1] + colW - 20, top + 5 * ROW, 20, Component.literal("+"), "30 sn artır.",
 			(b) -> run("bosta " + Math.min(3600, mod.config.idleSeconds + 30)));
 
+		// Forge plan shopping list (from the site), independent of counting.
+		add(0, 6, Component.literal("Forge planını panodan yükle"),
+			"Sitede Mining kârları → Forge planı → 'Mod için kopyala'dan sonra bas: alışveriş listesi solda açılır (/kazanc forge yukle). Sack ve storage sayıları API'den alınır (/kazanc forge yenile).",
+			(b) -> runInChat("forge yukle"));
+		list = add(1, 6, Component.empty(),
+			"Forge planı listesini solda göster/gizle (/kazanc forge). Kazanç sayımından bağımsız. T ile sohbeti açıp satıra tıkla: craft → tarif ekranı, al → Bazaar + miktar panoya.",
+			(b) -> run("forge"));
+
 		// API and other.
 		keyBox = new EditBox(font, colX[2], top + 10, colW, 16, Component.literal("API anahtarı"));
 		keyBox.setMaxLength(64);
@@ -174,6 +183,8 @@ public final class SettingsScreen extends Screen {
 		keyDelete.active = mod.hasApiKey();
 		notify.setMessage(onOff("Güncelleme haberi", mod.config.updateNotify));
 		log.setMessage(onOff("Hata kaydı", mod.config.debugLog));
+		list.setMessage(onOff("Forge planı listesi", mod.config.listVisible && mod.shoppingList != null));
+		list.active = mod.shoppingList != null;
 	}
 
 	@Override

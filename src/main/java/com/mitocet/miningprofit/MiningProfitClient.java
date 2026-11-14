@@ -64,6 +64,12 @@ public final class MiningProfitClient implements ClientModInitializer {
 	// The world the inventory was last read in: a new one means the inventory is sent again.
 	private Object lastLevel;
 	private Hud hud;
+	private ListHud listHud;
+	/** The forge plan's shopping list (/kazanc forge); null = none loaded. */
+	public ShoppingList shoppingList;
+	/** The open ender chest page / backpack / vault ("ec:2"…), read with the inventory; null = none open. */
+	private String storageOpen;
+	private boolean listBaseAsked;
 	private int ticks;
 	private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
 	private Updater updater;
@@ -146,6 +152,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 
 		hud = new Hud(this);
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "box"), hud::render);
+		if (config.listText != null) {
+			try { shoppingList = ShoppingList.parse(config.listText); } catch (IllegalArgumentException e) { config.listText = null; }
+		}
+		listHud = new ListHud(this);
+		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "list"), listHud::render);
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
 			// Any menu but chat: what comes into the inventory meanwhile is not mined (ores).
 			// A screen is initialised again on resize, so each one is counted once.
@@ -156,6 +167,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 					openMenus.remove(s);
 					tracker.onMenu(false, System.currentTimeMillis());
 					if (config.debugLog) debug.simple("menu-close", System.currentTimeMillis());
+				});
+			}
+			// An ender chest page, backpack or vault: its items count for the shopping list while it is open.
+			String storage = ShoppingList.storageKey(screen.getTitle().getString());
+			if (storage != null) {
+				storageOpen = storage;
+				ScreenEvents.remove(screen).register((s) -> {
+					if (storage.equals(storageOpen)) storageOpen = null;
 				});
 			}
 			// While a Sack menu is open (and just after), sack changes are not mining.
@@ -170,11 +189,16 @@ public final class MiningProfitClient implements ClientModInitializer {
 			}
 			if (!(screen instanceof ChatScreen)) return;
 			hud.chatOpen = true;
-			ScreenMouseEvents.allowMouseClick(screen).register((s, e) -> !hud.click(e.x(), e.y(), e.button()));
+			listHud.chatOpen = true;
+			ScreenMouseEvents.allowMouseClick(screen).register((s, e) -> !hud.click(e.x(), e.y(), e.button()) && !listHud.click(e.x(), e.y(), e.button()));
 			ScreenMouseEvents.allowMouseRelease(screen).register((s, e) -> !hud.release());
-			ScreenEvents.afterExtract(screen).register((s, g, mx, my, delta) -> hud.drag(mx, my));
+			ScreenEvents.afterExtract(screen).register((s, g, mx, my, delta) -> {
+				hud.drag(mx, my);
+				listHud.hover(mx, my);
+			});
 			ScreenEvents.remove(screen).register((s) -> {
 				hud.chatOpen = false;
+				listHud.chatOpen = false;
 				hud.release();
 			});
 		});
@@ -210,6 +234,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 			if (ticks % 20 == 0) skyBlockTick(client);
 			if (inSkyBlock && client.player != null) {
 				if (!joined) joined = onFirstJoin();
+				// The shopping list's sacks and storage come from the API once per game.
+				if (!listBaseAsked && shoppingList != null && config.listVisible && hasKey()) {
+					listBaseAsked = true;
+					loadListBase(null);
+				}
 				if (!updateChecked) {
 					updateChecked = true;
 					if (config.updateNotify) checkUpdateOnJoin();
@@ -408,6 +437,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 							? "Oyun açılınca yeni sürüm varsa indirilsin mi diye sorulacak."
 							: "Açılışta yeni sürüm sorusu kapalı. /kazanc update ile yine bakabilirsin.");
 					})))
+				.then(ClientCommands.literal("forge")
+					.executes((c) -> listToggle(c))
+					.then(ClientCommands.argument("islem", com.mojang.brigadier.arguments.StringArgumentType.word()).executes((c) ->
+						listCommand(c, com.mojang.brigadier.arguments.StringArgumentType.getString(c, "islem").toLowerCase(java.util.Locale.ROOT)))))
 				.then(ClientCommands.literal("help").executes(this::help))
 				.then(ClientCommands.literal("yardim").executes(this::help))
 				.then(ClientCommands.literal("fiyat").executes((c) -> {
@@ -426,6 +459,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			collectHovers(message, hovers);
 			long warned = tracker.warningCount;
 			config.sackCheck.onSackMessage(hovers, prices);
+			if (shoppingList != null) shoppingList.onSackMessage(hovers);
 			double coins = tracker.onSackMessage(hovers, now);
 			// With the log on everything goes in; with it off only messages that gave a warning.
 			if (config.debugLog || tracker.warningCount != warned) debug.sack(hovers, coins, now);
@@ -439,6 +473,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		}
 		for (String line : Tracker.lines(text)) {
 			config.sackCheck.onChatLine(Tracker.strip(line), now);
+			if (shoppingList != null) shoppingList.onChatLine(Tracker.strip(line));
 			boolean corpse = tracker.corpseOpen();
 			long warned = tracker.warningCount;
 			double coins = tracker.onChatLine(line, now);
@@ -483,6 +518,17 @@ public final class MiningProfitClient implements ClientModInitializer {
 		// The item held on the cursor in a menu still belongs to the inventory.
 		add(stacks, player.containerMenu.getCarried());
 		long now = System.currentTimeMillis();
+		if (shoppingList != null) {
+			shoppingList.setInventory(stacks);
+			if (storageOpen != null) {
+				// Only the menu's own slots, not the player's inventory shown under them.
+				List<Map.Entry<String, Integer>> page = new ArrayList<>();
+				for (net.minecraft.world.inventory.Slot slot : player.containerMenu.slots) {
+					if (slot.container != inv) add(page, slot.getItem());
+				}
+				shoppingList.setStoragePage(storageOpen, page);
+			}
+		}
 		double ore = tracker.onInventory(stacks, now); // mining items picked up into the inventory
 		handDeposits(stacks, now);
 		if (config.debugLog && ore > 0) debug.simple("inv-earn " + Math.round(ore), now);
@@ -576,6 +622,121 @@ public final class MiningProfitClient implements ClientModInitializer {
 		lastSrc = c.getSource();
 		c.getSource().sendFeedback(Component.literal("§6[Kazanç] §r" + text));
 		return Command.SINGLE_SUCCESS;
+	}
+
+	// ---------- forge plan shopping list (/kazanc forge) ----------
+	private int listToggle(CommandContext<FabricClientCommandSource> c) {
+		if (shoppingList == null) return say(c, "Yüklü liste yok. Sitede Mining kârları → Forge planı → 'Mod için kopyala', sonra /kazanc forge yukle.");
+		config.listVisible = !config.listVisible;
+		save();
+		if (config.listVisible && !shoppingList.baseLoaded && hasKey()) loadListBase(c.getSource());
+		return say(c, config.listVisible ? "Liste solda gösteriliyor. T ile sohbeti açıp satırlara tıklayabilirsin." : "Liste gizlendi. /kazanc forge ile tekrar açılır.");
+	}
+
+	private int listCommand(CommandContext<FabricClientCommandSource> c, String op) {
+		switch (op) {
+			case "yukle", "yükle" -> {
+				String text;
+				try {
+					text = Minecraft.getInstance().keyboardHandler.getClipboard();
+				} catch (RuntimeException e) {
+					text = null;
+				}
+				ShoppingList l;
+				try {
+					l = ShoppingList.parse(text);
+				} catch (IllegalArgumentException e) {
+					return say(c, "§c" + e.getMessage());
+				}
+				shoppingList = l;
+				config.listText = text.trim();
+				config.listVisible = true;
+				save();
+				say(c, "Forge planı yüklendi: " + l.rows.size() + " satır. Liste solda; T ile sohbeti açıp satırlara tıklayabilirsin.");
+				if (hasKey()) loadListBase(c.getSource());
+				else say(c, "§eAPI anahtarı yok (/kazanc api): sack ve storage sayılamaz, sadece envanter sayılır.");
+				return Command.SINGLE_SUCCESS;
+			}
+			case "yenile" -> {
+				if (shoppingList == null) return say(c, "Yüklü liste yok.");
+				if (!hasKey()) return say(c, "§cAPI anahtarı yok (/kazanc api).");
+				loadListBase(c.getSource());
+				return say(c, "Sack ve storage sayıları API'den yeniden alınıyor.");
+			}
+			case "sil" -> {
+				shoppingList = null;
+				config.listText = null;
+				config.listVisible = false;
+				save();
+				return say(c, "Liste silindi.");
+			}
+			case "goster", "göster" -> {
+				if (shoppingList == null) return say(c, "Yüklü liste yok.");
+				config.listVisible = true;
+				save();
+				return say(c, "Liste gösteriliyor.");
+			}
+			case "gizle" -> {
+				config.listVisible = false;
+				save();
+				return say(c, "Liste gizlendi.");
+			}
+			default -> {
+				return say(c, "Kullanım: /kazanc forge (aç/kapa), /kazanc forge yukle | yenile | sil");
+			}
+		}
+	}
+
+	/** A click on a list row: one command, only on the player's click. */
+	public void listClick(ShoppingList.Row r) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null) return;
+		if (r.action() == 'c') {
+			mc.player.connection.sendCommand("viewrecipe " + r.id());
+		} else if (r.action() == 'b') {
+			long left = shoppingList.left(r);
+			mc.keyboardHandler.setClipboard(String.valueOf(left));
+			mc.player.connection.sendCommand("bz " + r.name());
+		}
+	}
+
+	/** Sacks and storage for the shopping list from the Hypixel API ({@code src} null = quiet). */
+	private void loadListBase(FabricClientCommandSource src) {
+		Minecraft mc = Minecraft.getInstance();
+		LocalPlayer player = mc.player;
+		ShoppingList list = shoppingList;
+		if (player == null || list == null || !hasKey()) return;
+		String uuid = player.getUUID().toString().replace("-", "");
+		String key = config.apiKey.trim();
+		Thread t = new Thread(() -> {
+			String err = null;
+			Map<String, Long> sacks = null;
+			Map<String, Map<String, Long>> storage = null;
+			try {
+				HttpRequest req = HttpRequest.newBuilder(URI.create(SackCheck.URL + uuid))
+					.header("API-Key", key).timeout(Duration.ofSeconds(30)).GET().build();
+				HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+				sacks = SackCheck.parseSacks(res.body(), uuid);
+				storage = ShoppingList.parseStorage(res.body(), uuid);
+			} catch (IllegalStateException e) {
+				err = e.getMessage();
+			} catch (Exception e) {
+				LOG.warn("Hypixel API failed: {}", e.toString());
+				err = "Hypixel API'ye ulaşılamadı (" + e.getClass().getSimpleName() + ").";
+			}
+			Map<String, Long> s = sacks;
+			Map<String, Map<String, Long>> st = storage;
+			String e = err;
+			mc.execute(() -> {
+				if (s != null) {
+					list.setBase(s, st);
+					if (src != null) src.sendFeedback(Component.literal("§6[Kazanç] §rListe: sack ve storage sayıları API'den alındı" + (st.isEmpty() ? " (storage gelmedi, açınca okunur)." : ".")));
+				} else if (src != null) src.sendFeedback(Component.literal("§6[Kazanç] §c" + e));
+				else LOG.warn("Shopping list base: {}", e);
+			});
+		}, "miningprofit-list");
+		t.setDaemon(true);
+		t.start();
 	}
 
 	// ---------- sack check against the Hypixel API ----------
