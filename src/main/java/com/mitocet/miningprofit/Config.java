@@ -53,6 +53,10 @@ public final class Config {
 	public boolean autoFix;
 	/** On the first SkyBlock entry of a game, ask whether to download a newer jar (/kazanc update bildirim). */
 	public boolean updateNotify = true;
+	/** The forge plan's shopping list as the site copied it (/kazanc liste yukle); null = none. */
+	public String listText;
+	/** Whether the list box is shown on the left (/kazanc liste). Independent of earnings counting. */
+	public boolean listVisible;
 	/**
 	 * The session the game ended when it was closed (or found unfinished after a crash), to tell
 	 * about it and start a new session on the next join. null = nothing to tell.
