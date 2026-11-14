@@ -388,17 +388,23 @@ public final class MiningProfitClient implements ClientModInitializer {
 				}))
 				.then(ClientCommands.literal("update")
 					.executes((c) -> {
-						update(c.getSource());
+						update(c.getSource(), false);
 						return Command.SINGLE_SUCCESS;
 					})
 					.then(ClientCommands.argument("ayar", com.mojang.brigadier.arguments.StringArgumentType.word()).executes((c) -> {
 						String arg = com.mojang.brigadier.arguments.StringArgumentType.getString(c, "ayar").toLowerCase(java.util.Locale.ROOT);
-						if (!arg.equals("bildirim")) return say(c, "Kullanım: /kazanc update (indirir) ya da /kazanc update bildirim (açılışta haber vermeyi aç/kapa).");
+						// Mito: never download without a yes; [Evet] in the question runs "/kazanc update evet".
+						if (arg.equals("evet")) {
+							update(c.getSource(), true);
+							return Command.SINGLE_SUCCESS;
+						}
+						if (arg.equals("hayir") || arg.equals("hayır")) return say(c, "Tamam, indirilmedi. İstersen sonra /kazanc update yaz.");
+						if (!arg.equals("bildirim")) return say(c, "Kullanım: /kazanc update (yeni sürüm var mı bakar, indirmeden önce sorar) ya da /kazanc update bildirim (açılışta haber vermeyi aç/kapa).");
 						config.updateNotify = !config.updateNotify;
 						save();
 						return say(c, config.updateNotify
-							? "Oyun açılınca yeni sürüm varsa haber verilecek."
-							: "Açılışta yeni sürüm haberi kapalı. /kazanc update ile yine bakabilirsin.");
+							? "Oyun açılınca yeni sürüm varsa indirilsin mi diye sorulacak."
+							: "Açılışta yeni sürüm sorusu kapalı. /kazanc update ile yine bakabilirsin.");
 					})))
 				.then(ClientCommands.literal("help").executes(this::help))
 				.then(ClientCommands.literal("yardim").executes(this::help))
@@ -1181,7 +1187,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		t.start();
 	}
 
-	/** First time in SkyBlock in a game: tell (don't download) if a newer jar is on the Releases page. */
+	/** First time in SkyBlock in a game: if a newer jar is on the Releases page, ask (don't download) with [Evet]/[Hayır]. */
 	private void checkUpdateOnJoin() {
 		Minecraft mc = Minecraft.getInstance();
 		Thread t = new Thread(() -> {
@@ -1194,8 +1200,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				}
 				Updater.Release r = updater.latest();
 				if (!updater.isNewer(r.version())) return;
-				mc.execute(() -> chat(clickable("§eYeni sürüm var: v" + r.version() + " (sende v" + updater.currentVersion()
-					+ "). İndirmek için /kazanc update yaz §b[tıkla]", "/kazanc update")));
+				mc.execute(() -> chat(askDownload(r.version())));
 			} catch (Exception e) {
 				LOG.warn("Update check failed: {}", e.toString());
 			}
@@ -1204,7 +1209,25 @@ public final class MiningProfitClient implements ClientModInitializer {
 		t.start();
 	}
 
-	private void update(FabricClientCommandSource src) {
+	/**
+	 * "Yeni sürüm var ... İndirilsin mi? [Evet] [Hayır]". Clicking runs the command right away (RunCommand),
+	 * like SkyHanni's clickable chat prompts, which run their own client command on click.
+	 */
+	private Component askDownload(String version) {
+		return Component.literal("§6[Kazanç] §eYeni sürüm var: v" + version + " (sende v" + updater.currentVersion() + "). İndirilsin mi? ")
+			.append(button("§a§l[Evet]", "/kazanc update evet", "v" + version + " indirilir, oyunu kapatıp açınca yüklenir"))
+			.append(Component.literal(" "))
+			.append(button("§c§l[Hayır]", "/kazanc update hayir", "İndirilmez"));
+	}
+
+	private static Component button(String text, String command, String hover) {
+		return Component.literal(text).setStyle(Style.EMPTY
+			.withHoverEvent(new HoverEvent.ShowText(Component.literal(hover)))
+			.withClickEvent(new ClickEvent.RunCommand(command)));
+	}
+
+	/** confirmed = the player clicked [Evet] (or typed /kazanc update evet); otherwise only check and ask. */
+	private void update(FabricClientCommandSource src, boolean confirmed) {
 		if (!updater.canUpdate()) {
 			say(src, "§cMod jar'ı bulunamadı, kendiliğinden güncellenemiyor. Elle indir: " + Updater.RELEASES_PAGE);
 			return;
@@ -1214,7 +1237,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		updating = true;
-		say(src, "Yeni sürüm aranıyor... (sende v" + updater.currentVersion() + ")");
+		say(src, (confirmed ? "İndirmeye hazırlanıyor... (sende v" : "Yeni sürüm aranıyor... (sende v") + updater.currentVersion() + ")");
 		Minecraft mc = Minecraft.getInstance();
 		Thread t = new Thread(() -> {
 			String answer;
@@ -1225,6 +1248,9 @@ public final class MiningProfitClient implements ClientModInitializer {
 					answer = "Zaten en yeni sürüm: v" + updater.currentVersion() + ".";
 				} else if (waiting != null && Updater.compare(Updater.versionOf(waiting), r.version()) >= 0) {
 					answer = "v" + Updater.versionOf(waiting) + " zaten indirildi. §eOyunu kapatıp açınca yüklenir.";
+				} else if (!confirmed) {
+					mc.execute(() -> src.sendFeedback(askDownload(r.version())));
+					answer = null;
 				} else {
 					mc.execute(() -> say(src, "v" + r.version() + " indiriliyor..."));
 					updater.download(r);
@@ -1238,7 +1264,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				updating = false;
 			}
 			String text = answer;
-			mc.execute(() -> say(src, text));
+			if (text != null) mc.execute(() -> say(src, text));
 		}, "miningprofit-update");
 		t.setDaemon(true);
 		t.start();

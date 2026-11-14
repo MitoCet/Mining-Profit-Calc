@@ -51,7 +51,7 @@ public final class Config {
 	 * API is checked ~3 min after a server change (Oto düzelt button in /kazanc gecmis).
 	 */
 	public boolean autoFix;
-	/** On the first join of a game, say if a newer jar is on GitHub (/kazanc update bildirim). */
+	/** On the first SkyBlock entry of a game, ask whether to download a newer jar (/kazanc update bildirim). */
 	public boolean updateNotify = true;
 	/**
 	 * The session the game ended when it was closed (or found unfinished after a crash), to tell
