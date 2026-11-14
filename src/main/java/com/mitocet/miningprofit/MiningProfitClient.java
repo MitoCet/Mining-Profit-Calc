@@ -187,6 +187,15 @@ public final class MiningProfitClient implements ClientModInitializer {
 				});
 				return;
 			}
+			// An inventory or menu (forge, chest, sack…): the forge list is drawn flush on its left and clickable.
+			if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> menu) {
+				listHud.container = menu;
+				ScreenEvents.afterExtract(screen).register((s, g, mx, my, delta) -> listHud.renderInScreen(g, menu, mx, my));
+				ScreenMouseEvents.allowMouseClick(screen).register((s, e) -> !listHud.click(e.x(), e.y(), e.button()));
+				ScreenEvents.remove(screen).register((s) -> {
+					if (listHud.container == s) listHud.container = null;
+				});
+			}
 			if (!(screen instanceof ChatScreen)) return;
 			hud.chatOpen = true;
 			listHud.chatOpen = true;
@@ -630,7 +639,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		config.listVisible = !config.listVisible;
 		save();
 		if (config.listVisible && !shoppingList.baseLoaded && hasKey()) loadListBase(c.getSource());
-		return say(c, config.listVisible ? "Liste solda gösteriliyor. T ile sohbeti açıp satırlara tıklayabilirsin." : "Liste gizlendi. /kazanc forge ile tekrar açılır.");
+		return say(c, config.listVisible ? "Liste solda gösteriliyor. Envanteri (E) ya da bir menüyü açınca menünün soluna yapışır, satırlara oradan tıklayabilirsin." : "Liste gizlendi. /kazanc forge ile tekrar açılır.");
 	}
 
 	private int listCommand(CommandContext<FabricClientCommandSource> c, String op) {
@@ -652,7 +661,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				config.listText = text.trim();
 				config.listVisible = true;
 				save();
-				say(c, "Forge planı yüklendi: " + l.rows.size() + " satır. Liste solda; T ile sohbeti açıp satırlara tıklayabilirsin.");
+				say(c, "Forge planı yüklendi: " + l.rows.size() + " satır. Liste solda; envanteri (E) ya da bir menüyü açınca menünün soluna yapışır, satırlara oradan tıkla.");
 				if (hasKey()) loadListBase(c.getSource());
 				else say(c, "§eAPI anahtarı yok (/kazanc api): sack ve storage sayılamaz, sadece envanter sayılır.");
 				return Command.SINGLE_SUCCESS;

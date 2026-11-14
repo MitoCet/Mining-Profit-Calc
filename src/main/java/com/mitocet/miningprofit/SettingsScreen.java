@@ -117,7 +117,7 @@ public final class SettingsScreen extends Screen {
 			"Sitede Mining kârları → Forge planı → 'Mod için kopyala'dan sonra bas: alışveriş listesi solda açılır (/kazanc forge yukle). Sack ve storage sayıları API'den alınır (/kazanc forge yenile).",
 			(b) -> runInChat("forge yukle"));
 		list = add(1, 6, Component.empty(),
-			"Forge planı listesini solda göster/gizle (/kazanc forge). Kazanç sayımından bağımsız. T ile sohbeti açıp satıra tıkla: craft → tarif ekranı, al → Bazaar + miktar panoya.",
+			"Forge planı listesini solda göster/gizle (/kazanc forge). Kazanç sayımından bağımsız. Envanter/menü açıkken menünün soluna yapışır, satıra tıkla: craft → tarif ekranı, al → Bazaar + miktar panoya.",
 			(b) -> run("forge"));
 
 		// API and other.
