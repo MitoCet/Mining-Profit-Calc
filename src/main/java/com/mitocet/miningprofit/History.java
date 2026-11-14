@@ -52,8 +52,8 @@ public final class History {
 		public List<Item> hand = new ArrayList<>();
 		public long handFrom;
 		public long handTo;
-		/** Last material stash pickup before the check (0 = none): went into the sacks, amount unknown. */
-		public long stashAt;
+		/** What Düzelt added (item id -> count), so the Fark list still shows those families as added. */
+		public Map<String, Long> fixed = new HashMap<>();
 		/** Families whose hand-put items are taken off Düzelt (clicked in /kazanc gecmis). */
 		public java.util.Set<String> handOff = new java.util.HashSet<>();
 
@@ -231,7 +231,6 @@ public final class History {
 		c.hand.sort((a, b) -> Double.compare(b.api * b.value, a.api * a.value));
 		c.handFrom = sc.handFrom;
 		c.handTo = sc.handTo;
-		c.stashAt = sc.stashAt;
 		if (before != null && before.handOff != null) c.handOff.addAll(before.handOff);
 		if (allOff) for (Item h : c.hand) c.handOff.add(Check.famKey(h));
 	}
@@ -360,10 +359,6 @@ public final class History {
 			out.add(Line.of("    Sack mesajında görünmediler (sunucu değişti), Fark'a", HAND));
 			out.add(Line.of("    girmiş olabilirler. Çıkarmak için \"elle konmuş\" yazan aileye tıkla.", HAND));
 		}
-		if (c.stashAt > 0) {
-			out.add(Line.of("  ⚠ Stash'ten sack'e aktarıldı (" + clock(c.stashAt) + "), miktarı görülemiyor;", HAND));
-			out.add(Line.of("    Fark'ın bir kısmı ondan olabilir.", HAND));
-		}
 	}
 
 	/**
@@ -402,12 +397,13 @@ public final class History {
 				boolean up = counted(c, items);
 				double v = net.get(fam);
 				String name = fam.startsWith("?") ? items.get(0).name : Breakdown.rowName(fam);
-				List<Item> hand = c.handOf(fam);
+				List<Item> hand = toAdd(c, items) ? c.handOf(fam) : List.of();
+				boolean done = up && !toAdd(c, items);
 				boolean off = up && !hand.isEmpty() && c.handOff(fam);
 				double handCoins = off ? handOffCoins(c, fam) : 0;
 				String tag = !up || hand.isEmpty() ? "" : off ? " §6elle konan çıkarıldı · tıkla: geri al" : " §6elle konmuş · tıkla: çıkar";
 				double shown = v - handCoins;
-				String right = up ? (shown >= 0 ? "+" : "") + Format.coins(Math.max(0, shown)) : "mod fazla · çıkarılmaz";
+				String right = up ? (shown >= 0 ? "+" : "") + Format.coins(Math.max(0, shown)) + (done ? " ✔" : "") : "mod fazla · çıkarılmaz";
 				out.add(new Line("    " + name + tag, right, TEXT, up ? GOOD : MUTED, up && !hand.isEmpty() ? fam : null));
 				for (Item i : items) {
 					long d = i.api - i.read;
@@ -439,11 +435,31 @@ public final class History {
 		return raw - left;
 	}
 
-	/** Whether Düzelt adds this family (it went up; netted, so every item of it is in missing). */
+	/** Whether Düzelt adds this family or already added it (it went up; netted, so every item of it is in missing). */
 	private static boolean counted(Check c, List<Item> items) {
+		return toAdd(c, items) || added(c, items);
+	}
+
+	/** Düzelt still adds this family. */
+	private static boolean toAdd(Check c, List<Item> items) {
 		if (c.missing == null) return false;
 		for (Item i : items) if (c.missing.containsKey(i.id)) return true;
 		return false;
+	}
+
+	/**
+	 * Düzelt already added this family. Checks fixed before v1.0.40 did not keep what was added:
+	 * then every family that went up was added.
+	 */
+	private static boolean added(Check c, List<Item> items) {
+		if (c.fixed != null && !c.fixed.isEmpty()) {
+			for (Item i : items) if (c.fixed.containsKey(i.id)) return true;
+			return false;
+		}
+		if (c.fixedCoins <= 0) return false;
+		double v = 0;
+		for (Item i : items) v += (i.api - i.read) * i.value;
+		return v >= 1;
 	}
 
 	static String signed(long n) {
