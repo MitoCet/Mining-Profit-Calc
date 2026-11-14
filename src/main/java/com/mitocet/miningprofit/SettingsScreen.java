@@ -127,9 +127,9 @@ public final class SettingsScreen extends Screen {
 		add(colX[2], top + 30 + ROW, colW, Component.literal("Fiyatları yenile"),
 			"Fiyatları siteden hemen yeniden alır (/kazanc fiyat).", (b) -> run("fiyat"));
 		add(colX[2], top + 30 + 2 * ROW, colW, Component.literal("Güncelle (şu an v" + mod.version() + ")"),
-			"En yeni jar'ı indirir, oyun kapanınca değiştirir (/kazanc update).", (b) -> run("update"));
+			"Yeni sürüm var mı bakar; varsa sohbette indirilsin mi diye sorar, [Evet]'e basınca indirir (/kazanc update).", (b) -> run("update"));
 		notify = add(colX[2], top + 30 + 3 * ROW, colW, Component.empty(),
-			"Oyun açılınca yeni sürüm varsa haber versin mi (/kazanc update bildirim).", (b) -> run("update bildirim"));
+			"Oyun açılınca yeni sürüm varsa indirilsin mi diye sorsun mu (/kazanc update bildirim).", (b) -> run("update bildirim"));
 		log = add(colX[2], top + 30 + 4 * ROW, colW, Component.empty(),
 			"Okunan mesajları config klasöründeki kayıt dosyasına yazar (/kazanc kayit).", (b) -> run("kayit"));
 		add(colX[2], top + 30 + 5 * ROW, colW, Component.literal("Yardım (komut listesi)"),
