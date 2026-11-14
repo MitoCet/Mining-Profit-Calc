@@ -48,6 +48,84 @@ public final class History {
 		public double fixedCoins;
 		/** missing and diffCoins are netted per family (checks saved before v1.0.34 were not). */
 		public boolean netted;
+		/** Put into the sacks by hand and no sack message showed it (see SackCheck.hand); count = amount. */
+		public List<Item> hand = new ArrayList<>();
+		public long handFrom;
+		public long handTo;
+		/** Last material stash pickup before the check (0 = none): went into the sacks, amount unknown. */
+		public long stashAt;
+		/** Families whose hand-put items are taken off Düzelt (clicked in /kazanc gecmis). */
+		public java.util.Set<String> handOff = new java.util.HashSet<>();
+
+		/** Family key of an item as the Fark list groups it. */
+		static String famKey(Item i) {
+			return i.family != null ? i.family : "?" + i.id;
+		}
+
+		/** Hand-put items of a family (empty if none). */
+		public List<Item> handOf(String fam) {
+			List<Item> out = new ArrayList<>();
+			if (hand != null) for (Item h : hand) if (famKey(h).equals(fam)) out.add(h);
+			return out;
+		}
+
+		public boolean handOff(String fam) {
+			return handOff != null && handOff.contains(fam);
+		}
+
+		/** Click in /kazanc gecmis: take the family's hand-put items off Düzelt, or count them again. */
+		public void toggleHand(String fam) {
+			if (handOff == null) handOff = new java.util.HashSet<>();
+			if (!handOff.remove(fam)) handOff.add(fam);
+		}
+
+		/**
+		 * {@code m} (item id -> count to add) less the hand-put items of the families clicked off.
+		 * A family that is then not up any more is left out (earnings never go down).
+		 */
+		public Map<String, Long> withoutHand(Map<String, Long> m) {
+			if (m == null) return new HashMap<>();
+			if (hand == null || hand.isEmpty() || handOff == null || handOff.isEmpty()) return m;
+			Map<String, String> fam = new HashMap<>();
+			Map<String, Double> val = new HashMap<>();
+			for (Item i : items) {
+				fam.put(i.id, famKey(i));
+				val.put(i.id, i.value);
+			}
+			java.util.Set<String> up = new java.util.HashSet<>();
+			for (String id : m.keySet()) up.add(fam.getOrDefault(id, "?" + id));
+			Map<String, Long> out = new HashMap<>(m);
+			for (Item h : hand) {
+				String f = famKey(h);
+				if (!handOff.contains(f) || !up.contains(f)) continue;
+				fam.putIfAbsent(h.id, f);
+				val.putIfAbsent(h.id, h.value);
+				out.merge(h.id, -h.api, Long::sum);
+			}
+			Map<String, Double> net = new HashMap<>();
+			out.forEach((id, n) -> net.merge(fam.getOrDefault(id, "?" + id), n * val.getOrDefault(id, 0.0), Double::sum));
+			out.entrySet().removeIf(e -> e.getValue() == 0 || net.get(fam.getOrDefault(e.getKey(), "?" + e.getKey())) < 1);
+			return out;
+		}
+
+		/** Value of one item, from the check (hand-put items included). */
+		double valueOf(String id) {
+			for (Item i : items) if (i.id.equals(id)) return i.value;
+			if (hand != null) for (Item h : hand) if (h.id.equals(id)) return h.value;
+			return 0;
+		}
+
+		/** Coins the clicked-off hand-put items take off Düzelt. */
+		public double handOffCoins() {
+			return rawMissingCoins() - missingCoins();
+		}
+
+		private double rawMissingCoins() {
+			double c = 0;
+			if (missing == null) return 0;
+			for (Map.Entry<String, Long> e : missing.entrySet()) c += e.getValue() * valueOf(e.getKey());
+			return c;
+		}
 
 		/**
 		 * A check saved by an older version kept every positive difference for Düzelt and summed all
@@ -79,11 +157,10 @@ public final class History {
 			}
 		}
 
-		/** Coins Düzelt would add now. */
+		/** Coins Düzelt would add now (hand-put items clicked off are left out). */
 		public double missingCoins() {
 			double c = 0;
-			if (missing == null) return 0;
-			for (Item i : items) if (missing.containsKey(i.id)) c += missing.get(i.id) * i.value;
+			for (Map.Entry<String, Long> e : withoutHand(missing).entrySet()) c += e.getValue() * valueOf(e.getKey());
 			return c;
 		}
 	}
@@ -134,6 +211,31 @@ public final class History {
 		return c;
 	}
 
+	/**
+	 * Adds what was put into the sacks by hand (and no sack message showed) to a check. The families
+	 * clicked off in the check it replaces stay off; with {@code allOff} (Oto düzelt) all are off.
+	 */
+	public static void addHand(Check c, SackCheck sc, Check before, boolean allOff, Prices p) {
+		if (sc.hand != null) {
+			for (Map.Entry<String, Long> e : sc.hand.entrySet()) {
+				Prices.Item item = p.byId(e.getKey());
+				Item h = new Item();
+				h.id = e.getKey();
+				h.name = item != null && item.name() != null ? item.name() : e.getKey();
+				h.api = e.getValue();
+				h.value = item != null ? item.value() : 0;
+				h.family = item != null ? item.family() : null;
+				c.hand.add(h);
+			}
+		}
+		c.hand.sort((a, b) -> Double.compare(b.api * b.value, a.api * a.value));
+		c.handFrom = sc.handFrom;
+		c.handTo = sc.handTo;
+		c.stashAt = sc.stashAt;
+		if (before != null && before.handOff != null) c.handOff.addAll(before.handOff);
+		if (allOff) for (Item h : c.hand) c.handOff.add(Check.famKey(h));
+	}
+
 	/** Short state for the list: "✔ sack ile aynı", "⚠ sack farkı +45,2k", "kontrol yok"… */
 	public static String status(Check c) {
 		if (c == null) return "kontrol yok";
@@ -165,9 +267,16 @@ public final class History {
 	public static final int BAD = 0xFFFF6B6B;
 	/** Category headings of the Fark list. */
 	public static final int CAT = 0xFF7FD4FF;
+	/** Items put into the sacks by hand. */
+	public static final int HAND = 0xFFFFA040;
 
 	/** One line of the detail pane: text on the left, a value on the right (may be empty). */
-	public record Line(String text, String right, int color, int rightColor) {
+	public record Line(String text, String right, int color, int rightColor, String click) {
+		/** {@code click}: the family a click on this line toggles (hand-put items), null = none. */
+		public Line(String text, String right, int color, int rightColor) {
+			this(text, right, color, rightColor, null);
+		}
+
 		static Line of(String text, int color) {
 			return new Line(text, "", color, color);
 		}
@@ -220,12 +329,41 @@ public final class History {
 			out.add(Line.kv("API'ye göre gerçek", "~" + Format.count(c.modCoins + c.diffCoins), TEXT));
 			out.add(new Line("Fark (" + c.items.size() + " item, " + c.matched + " item tutuyor)",
 				(c.diffCoins >= 0 ? "+" : "") + Format.count(c.diffCoins), BAD, BAD));
+			handWarning(out, c);
 			fark(out, c);
 		}
 		if (c.fixedCoins > 0) out.add(Line.of("  ✔ Düzelt ile eklendi: +" + Format.count(c.fixedCoins), GOOD));
 		double m = c.missingCoins();
-		if (m > 0) out.add(Line.of("  Düzelt ile +" + Format.count(m) + " eklenebilir.", HEAD));
+		double off = c.handOffCoins();
+		if (m > 0) out.add(Line.of("  Düzelt ile +" + Format.count(m) + " eklenebilir"
+			+ (off >= 1 ? " (elle konan " + Format.coins(off) + " çıkarıldı)." : "."), HEAD));
 		return out;
+	}
+
+	/** Tells what was put into the sacks by hand without a sack message (Mito: say what and how many). */
+	static void handWarning(List<Line> out, Check c) {
+		if (c.hand != null && !c.hand.isEmpty()) {
+			String when = c.handFrom > 0 ? " (" + clock(c.handFrom) + (c.handTo > 0 && !clock(c.handTo).equals(clock(c.handFrom)) ? "–" + clock(c.handTo) : "") + ")" : "";
+			out.add(Line.of("  ⚠ Sack'e elle koydukların" + when + ":", HAND));
+			StringBuilder b = new StringBuilder();
+			int n = 0;
+			for (Item h : c.hand) {
+				if (n > 0) b.append(" · ");
+				b.append(h.name).append(": ").append(Format.count(h.api));
+				if (++n == 2) {
+					out.add(Line.of("    " + b, HAND));
+					b.setLength(0);
+					n = 0;
+				}
+			}
+			if (n > 0) out.add(Line.of("    " + b, HAND));
+			out.add(Line.of("    Sack mesajında görünmediler (sunucu değişti), Fark'a", HAND));
+			out.add(Line.of("    girmiş olabilirler. Çıkarmak için \"elle konmuş\" yazan aileye tıkla.", HAND));
+		}
+		if (c.stashAt > 0) {
+			out.add(Line.of("  ⚠ Stash'ten sack'e aktarıldı (" + clock(c.stashAt) + "), miktarı görülemiyor;", HAND));
+			out.add(Line.of("    Fark'ın bir kısmı ondan olabilir.", HAND));
+		}
 	}
 
 	/**
@@ -245,7 +383,7 @@ public final class History {
 			net.put(e.getKey(), v);
 			String cat = e.getKey().startsWith("?") ? Breakdown.OTHER : Breakdown.category(e.getKey());
 			cats.computeIfAbsent(cat, k -> new ArrayList<>()).add(e.getKey());
-			if (counted(c, e.getValue())) catTotal.merge(cat, v, Double::sum);
+			if (counted(c, e.getValue())) catTotal.merge(cat, Math.max(0, v - handOffCoins(c, e.getKey())), Double::sum);
 		}
 		List<String> catOrder = new ArrayList<>(cats.keySet());
 		catOrder.sort((a, b) -> Double.compare(catTotal.getOrDefault(b, 0.0), catTotal.getOrDefault(a, 0.0)));
@@ -264,7 +402,13 @@ public final class History {
 				boolean up = counted(c, items);
 				double v = net.get(fam);
 				String name = fam.startsWith("?") ? items.get(0).name : Breakdown.rowName(fam);
-				out.add(new Line("    " + name, up ? (v >= 0 ? "+" : "") + Format.coins(v) : "mod fazla · çıkarılmaz", TEXT, up ? GOOD : MUTED));
+				List<Item> hand = c.handOf(fam);
+				boolean off = up && !hand.isEmpty() && c.handOff(fam);
+				double handCoins = off ? handOffCoins(c, fam) : 0;
+				String tag = !up || hand.isEmpty() ? "" : off ? " §6elle konan çıkarıldı · tıkla: geri al" : " §6elle konmuş · tıkla: çıkar";
+				double shown = v - handCoins;
+				String right = up ? (shown >= 0 ? "+" : "") + Format.coins(Math.max(0, shown)) : "mod fazla · çıkarılmaz";
+				out.add(new Line("    " + name + tag, right, TEXT, up ? GOOD : MUTED, up && !hand.isEmpty() ? fam : null));
 				for (Item i : items) {
 					long d = i.api - i.read;
 					String unit = fam.startsWith("?") ? "" : Breakdown.unit(i.id, fam);
@@ -272,8 +416,27 @@ public final class History {
 					String worth = up ? " · " + (d >= 0 ? "+" : "") + Format.coins(d * i.value) : "";
 					out.add(Line.of("      " + label + ": gerçek " + signed(i.api) + ", mod " + signed(i.read) + worth, MUTED));
 				}
+				if (off) {
+					StringBuilder b = new StringBuilder();
+					for (Item h : hand) b.append(b.length() > 0 ? ", " : "").append(Format.count(h.api)).append(' ').append(h.name);
+					out.add(new Line("      − Elle konan: " + b, "−" + Format.coins(handCoins), HAND, HAND, fam));
+				}
 			}
 		}
+	}
+
+	/** Coins the family's clicked-off hand-put items take off what Düzelt adds (up to the family's net). */
+	static double handOffCoins(Check c, String fam) {
+		if (!c.handOff(fam)) return 0;
+		Map<String, Long> fm = new HashMap<>();
+		if (c.missing != null) c.missing.forEach((id, n) -> {
+			for (Item i : c.items) if (i.id.equals(id) && Check.famKey(i).equals(fam)) fm.put(id, n);
+		});
+		double raw = 0;
+		for (Map.Entry<String, Long> e : fm.entrySet()) raw += e.getValue() * c.valueOf(e.getKey());
+		double left = 0;
+		for (Map.Entry<String, Long> e : c.withoutHand(fm).entrySet()) left += e.getValue() * c.valueOf(e.getKey());
+		return raw - left;
 	}
 
 	/** Whether Düzelt adds this family (it went up; netted, so every item of it is in missing). */

@@ -60,6 +60,55 @@ public final class SackCheck {
 	/** The missing items are from before the base (the previous game's session, after rebase). */
 	public boolean missingBeforeBase;
 
+	// ---------- items put into the sacks by hand (Mito, 2026-11-14) ----------
+	// Items bought (or brought) and put into the sacks are in the API counts. Their sack message is
+	// normally read, so they make no difference; when it is lost (server change before it comes),
+	// the check would see them as missed mining and Düzelt would add them. So the mod keeps what it
+	// saw leave the inventory into a Sack menu until a sack message shows it; what no message
+	// showed is listed with the check, and in /kazanc gecmis a click takes it off Düzelt.
+	/** A sack message comes ~30 s after the change; what no message showed by then is at risk. */
+	public static final long HAND_MS = 75_000;
+	/** Put into the sacks by hand, no sack message showed it yet (item id -> count). */
+	public Map<String, Long> handPending = new HashMap<>();
+	/** When something was last put into handPending (ms). */
+	public long handPendingAt;
+	/** Put in by hand and no sack message showed it (lost): may be in the API difference. Item id -> count. */
+	public Map<String, Long> hand = new HashMap<>();
+	/** First and last time something went into {@link #hand} (ms, 0 = none). */
+	public long handFrom;
+	public long handTo;
+	/** Last material stash pickup (its items go into the sacks without a sack message; count unknown). 0 = none. */
+	public long stashAt;
+
+	/** Mining items that left the inventory into a Sack menu (item id -> count). */
+	public void onHandDeposit(String id, long count, long now) {
+		if (base == null || count <= 0) return;
+		handPending.merge(id, count, Long::sum);
+		handPendingAt = now;
+	}
+
+	/** /pickupstash: what it puts into the sacks gives no sack message, the amount is not known. */
+	public void onStash(long now) {
+		if (base != null) stashAt = now;
+	}
+
+	/** Server change: the sack message still to come is lost, what it would have shown is at risk. */
+	public void onWorldChange(long now) {
+		if (!handPending.isEmpty() && now - handPendingAt <= HAND_MS) movePending();
+	}
+
+	/** Called now and then: what no sack message showed for a while is at risk too. */
+	public void tick(long now) {
+		if (!handPending.isEmpty() && now - handPendingAt > HAND_MS) movePending();
+	}
+
+	private void movePending() {
+		handPending.forEach((id, n) -> hand.merge(id, n, Long::sum));
+		if (handFrom == 0) handFrom = handPendingAt;
+		handTo = handPendingAt;
+		handPending = new HashMap<>();
+	}
+
 	/** Missing items to add now: families whose value went up (earnings never go down), see {@link #familyMissing}. */
 	public void setMissing(List<Diff> diffs, Prices p) {
 		setMissing(diffs, p, false);
@@ -171,6 +220,11 @@ public final class SackCheck {
 		if (!missingBeforeBase) out.forEach((id, n) -> read.merge(id, n, Long::sum));
 		missing = new HashMap<>();
 		lastReport = null;
+		// What was put in by hand is in what Düzelt took (or left out): not listed again.
+		hand = new HashMap<>();
+		handFrom = 0;
+		handTo = 0;
+		stashAt = 0;
 		return out;
 	}
 
@@ -190,6 +244,17 @@ public final class SackCheck {
 		endedCoins = null;
 		endedId = 0;
 		lastReport = null;
+		clearHand();
+	}
+
+	/** Forgets the items put in by hand (new base, or Düzelt took the difference). */
+	public void clearHand() {
+		handPending = new HashMap<>();
+		handPendingAt = 0;
+		hand = new HashMap<>();
+		handFrom = 0;
+		handTo = 0;
+		stashAt = 0;
 	}
 
 	/** A mining item from corpse loot (it goes into the sacks; a sack message may or may not follow). */
@@ -210,6 +275,12 @@ public final class SackCheck {
 				long amount = Math.round(Tracker.number(m.group(1)));
 				if (amount == 0) continue;
 				read.merge(item.id(), amount, Long::sum);
+				// Put in by hand and shown here: the message was not lost.
+				Long hp = handPending.get(item.id());
+				if (amount > 0 && hp != null) {
+					if (hp > amount) handPending.put(item.id(), hp - amount);
+					else handPending.remove(item.id());
+				}
 				// A sack message showing corpse items: they are in what was read now.
 				Long pending = corpse.get(item.id());
 				if (amount > 0 && pending != null) {

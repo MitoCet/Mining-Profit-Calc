@@ -432,6 +432,11 @@ public final class Tracker {
 		}
 	}
 
+	/** A Sack menu is open (or closed this soon): what leaves the inventory now goes into the sacks. */
+	public boolean sackMenuNow(long now) {
+		return sackMenuOpen || (sackMenuClosedAt >= 0 && now - sackMenuClosedAt <= MENU_MS);
+	}
+
 	/** True for a menu title that belongs to the sacks ("Mining Sack", "Sack of Sacks"…). */
 	public static boolean isSackMenu(String title) {
 		return strip(title).contains("Sack");

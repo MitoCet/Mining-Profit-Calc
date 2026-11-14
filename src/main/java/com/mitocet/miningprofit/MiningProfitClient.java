@@ -116,6 +116,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (config.sackCheck == null) config.sackCheck = new SackCheck();
 		if (config.sackCheck.read == null) config.sackCheck.read = new java.util.HashMap<>();
 		if (config.sackCheck.corpse == null) config.sackCheck.corpse = new java.util.HashMap<>();
+		if (config.sackCheck.hand == null) config.sackCheck.hand = new java.util.HashMap<>();
+		if (config.sackCheck.handPending == null) config.sackCheck.handPending = new java.util.HashMap<>();
 		tracker.corpseMining = (id, n) -> config.sackCheck.onCorpseItem(id, n);
 		renetChecks();
 		// A session still here means the game did not close normally (crash): end it the same way.
@@ -138,6 +140,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			if (command.trim().toLowerCase(java.util.Locale.ROOT).startsWith("pickupstash")) {
 				long now = System.currentTimeMillis();
 				tracker.onStashPickup(now);
+				config.sackCheck.onStash(now);
 				if (config.debugLog) debug.simple("stash", now);
 			}
 		});
@@ -464,11 +467,14 @@ public final class MiningProfitClient implements ClientModInitializer {
 		LocalPlayer player = client.player;
 		if (player == null) {
 			tracker.onInventory(null, System.currentTimeMillis());
+			lastMining = null;
 			return;
 		}
 		if (client.level != lastLevel) {
 			lastLevel = client.level;
 			tracker.onWorldChange(System.currentTimeMillis());
+			config.sackCheck.onWorldChange(System.currentTimeMillis());
+			lastMining = null;
 			if (config.debugLog) debug.simple("world", System.currentTimeMillis());
 		}
 		List<Map.Entry<String, Integer>> stacks = new ArrayList<>();
@@ -478,6 +484,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		add(stacks, player.containerMenu.getCarried());
 		long now = System.currentTimeMillis();
 		double ore = tracker.onInventory(stacks, now); // mining items picked up into the inventory
+		handDeposits(stacks, now);
 		if (config.debugLog && ore > 0) debug.simple("inv-earn " + Math.round(ore), now);
 		if (config.debugLog) {
 			// Only mining items, and only when they changed.
@@ -492,6 +499,29 @@ public final class MiningProfitClient implements ClientModInitializer {
 				debug.inventory(mining, now);
 			}
 		}
+	}
+
+	// Mining items in the inventory at the last look (item id -> count), null = not known.
+	private Map<String, Long> lastMining;
+
+	/** Mining items that left the inventory while a Sack menu was open went into the sacks by hand. */
+	private void handDeposits(List<Map.Entry<String, Integer>> stacks, long now) {
+		Map<String, Long> cur = new java.util.HashMap<>();
+		for (Map.Entry<String, Integer> e : stacks) {
+			Prices.Item item = prices.byName(e.getKey());
+			if (item != null && item.mining()) cur.merge(item.id(), (long) e.getValue(), Long::sum);
+		}
+		if (lastMining != null && tracker.sackMenuNow(now)) {
+			for (Map.Entry<String, Long> e : lastMining.entrySet()) {
+				long gone = e.getValue() - cur.getOrDefault(e.getKey(), 0L);
+				if (gone > 0) {
+					config.sackCheck.onHandDeposit(e.getKey(), gone, now);
+					if (config.debugLog) debug.simple("hand " + e.getKey() + " " + gone, now);
+				}
+			}
+		}
+		lastMining = cur;
+		config.sackCheck.tick(now);
 	}
 
 	private static void add(List<Map.Entry<String, Integer>> out, ItemStack stack) {
@@ -645,8 +675,12 @@ public final class MiningProfitClient implements ClientModInitializer {
 		History.Check hc = History.check(r, modCoins, prices, now);
 		if (endedState(previous, now)) {
 			History.Session rec = config.history.find(config.sackCheck.endedId);
-			if (rec != null) rec.check = hc;
+			if (rec != null) {
+				History.addHand(hc, config.sackCheck, rec.check, config.autoFix, prices);
+				rec.check = hc;
+			}
 		} else {
+			History.addHand(hc, config.sackCheck, config.liveCheck, config.autoFix, prices);
 			config.liveCheck = hc;
 		}
 		if (r.diffs().isEmpty()) {
@@ -689,6 +723,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 		say(src, "Mod: " + Format.coins(modCoins) + " → API'ye göre gerçek: §a~" + Format.coins(modCoins + missingCoins)
 			+ "§r (fark " + (missingCoins >= 0 ? "+" : "") + Format.coins(missingCoins) + ").");
 		if (canFix) src.sendFeedback(fixHint());
+		if (!hc.hand.isEmpty() || hc.stashAt > 0) say(src, "§6⚠ Sack'e elle koyduğun ya da stash'ten gelen itemlerin sack mesajı gelmedi; Fark'a girmiş olabilirler. /kazanc gecmis'te o aileye tıklayıp Düzelt'ten çıkarabilirsin.");
 		say(src, "Fark Hypixel'in gecikmesinden de olabilir: 2-3 dk sonra /kazanc kontrol ile tekrar bak. Sunucu ya da Mineshaft değiştirince son sack mesajı gelmeyebilir; kalıcı fark çoğu zaman budur (ya da mesaj iki kez okunmuştur, /kazanc kayit). Envanterden sack'e koyduğun ya da sack'ten sattığın itemler de API farkına girer.");
 		long before = tracker.warningCount;
 		// Only the newest difference stays in the warnings.
@@ -716,6 +751,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 			return;
 		}
 		Map<String, Long> missing = config.sackCheck.takeMissing();
+		// Hand-put items clicked off in /kazanc gecmis (all with Oto düzelt) are not added.
+		if (config.liveCheck != null) missing = config.liveCheck.withoutHand(missing);
 		double coins = 0;
 		List<String> parts = new ArrayList<>();
 		for (SackCheck.Fix f : SackCheck.fixes(missing, prices, id -> prices.byId(id).value())) {
@@ -771,7 +808,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		if (c != null && c.missing != null) {
 			Map<String, Double> stored = new java.util.HashMap<>();
 			for (History.Item i : c.items) if (i.value > 0) stored.put(i.id, i.value);
-			for (SackCheck.Fix f : SackCheck.fixes(c.missing, prices,
+			for (History.Item h : c.hand) if (h.value > 0) stored.putIfAbsent(h.id, h.value);
+			for (SackCheck.Fix f : SackCheck.fixes(c.withoutHand(c.missing), prices,
 				id -> stored.getOrDefault(id, prices.byId(id).value()))) {
 				double added = tracker.addFixTo(rec, f.item(), f.count(), f.coins() / f.count());
 				if (added <= 0) continue;
@@ -880,6 +918,12 @@ public final class MiningProfitClient implements ClientModInitializer {
 		String msg = toggleKeyCost();
 		FabricClientCommandSource src = menuSource();
 		if (src != null) say(src, msg);
+	}
+
+	/** A click on a family in /kazanc gecmis: its hand-put items off Düzelt, or counted again. */
+	public void menuToggleHand(History.Check c, String fam) {
+		c.toggleHand(fam);
+		save();
 	}
 
 	public void menuToggleAutoFix() {
