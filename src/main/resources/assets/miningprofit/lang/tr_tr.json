@@ -1,1 +1,4 @@
-{ "key.miningprofit.menu": "Kazanç menüsü" }
+{
+ "key.miningprofit.menu": "Kazanç menüsü",
+ "key.category.miningprofit.main": "Mining Profit Calc"
+}

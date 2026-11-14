@@ -43,7 +43,7 @@ Büyük kutuda kazanç başlıklara ayrılır: Gemstone, Dwarven Metal (Mithril,
 
 `/kazanc` yazınca (ya da atadığın tuşa basınca) bir menü açılır: üstte Session ve Toplam özeti, altında her komutun ve ayarın butonu. Session: Başlat, Durdur/Devam, Bitir, Geçmiş, Sack kontrolü, Uyarılar, Özeti sohbete yaz. Kutu ve sayım: kutu boyu, sekme, durmuşken kutu, Anahtarlı corpse, Oto düzelt, Boşta durma (−/+ 30 sn). API ve diğer: API anahtarı kutusu (yapıştır, Kaydet / Sil), Fiyatları yenile, Güncelle, Güncelleme haberi, Hata kaydı, Yardım; en altta Hepsini sil ve Kapat. Butonlar aynı `/kazanc` komutlarını çalıştırır, cevapları sohbete yazılır; fareyi butonun üstünde tutunca ne yaptığı çıkar. Komutlar da aynen çalışır.
 
-Kısayol tuşu: Ayarlar → Kontroller → Tuş atamaları → Çeşitli → **Kazanç menüsü** (varsayılan atanmamış).
+Kısayol tuşu: Ayarlar → Kontroller → Tuş atamaları → Mining Profit Calc → **Kazanç menüsü** (varsayılan atanmamış).
 
 ### Session geçmişi (`/kazanc gecmis`)
 
