@@ -170,8 +170,11 @@ public final class HistoryScreen extends Screen {
 
 		double total = Tracker.net(mod.tracker.totalCoins, mod.tracker.totalBreakdown, mod.config.keyCost);
 		g.centeredText(font, title, width / 2, 8, History.HEAD);
-		g.centeredText(font, Component.literal("Toplam: " + Format.count(total) + " coin · " + Format.time(mod.tracker.totalMs(now))
-			+ " · " + mod.history().sessions.size() + " session"), width / 2, 19, History.MUTED);
+		long totalMs = mod.tracker.totalMs(now);
+		// Overall hourly profit: Toplam coins over Toplam active time (same as the HUD's Toplam tab).
+		g.centeredText(font, Component.literal("Toplam: " + Format.count(total) + " coin · " + Format.time(totalMs)
+			+ " · §e" + Format.coins(Tracker.perHour(total, totalMs)) + "/sa§r · " + mod.history().sessions.size() + " session"),
+			width / 2, 19, History.MUTED);
 
 		// List.
 		box(g, listX, top, listW, listBottom - top);
