@@ -34,6 +34,10 @@ public final class HistoryScreen extends Screen {
 	private Button deleteButton;
 	private Button autoFixButton;
 	private Button keyCostButton;
+	/** The detail lines drawn last and the first one shown, for clicks on a family (hand-put items). */
+	private List<History.Line> shownLines = List.of();
+	private int shownStart;
+	private History.Check shownCheck;
 
 	// Layout, set in init().
 	private int listX;
@@ -194,6 +198,8 @@ public final class HistoryScreen extends Screen {
 
 		// Details.
 		box(g, detailX, top, detailW, bottom - top);
+		shownLines = List.of();
+		shownCheck = null;
 		if (sel == null) return;
 		String head = live ? "Şu anki session · " + Format.time(sel.ms)
 			: History.date(sel.start) + " – " + History.clock(sel.end) + " · " + Format.time(sel.ms);
@@ -202,6 +208,9 @@ public final class HistoryScreen extends Screen {
 		int fits = (bottom - top - 8) / LINE;
 		detailScroll = Math.max(0, Math.min(detailScroll, Math.max(0, lines.size() - fits)));
 		int start = (int) detailScroll;
+		shownLines = lines;
+		shownStart = start;
+		shownCheck = sel.check;
 		int x = detailX + 6;
 		int right = detailX + detailW - 6;
 		for (int i = start; i < lines.size() && i < start + fits; i++) {
@@ -242,6 +251,14 @@ public final class HistoryScreen extends Screen {
 				detailScroll = 0;
 			}
 			return true;
+		}
+		// A family with items put into the sacks by hand: take them off Düzelt (or count them again).
+		if (shownCheck != null && mx >= detailX && mx < detailX + detailW && my >= top + 5 && my < bottom) {
+			int i = shownStart + (int) ((my - top - 5) / LINE);
+			if (i >= 0 && i < shownLines.size() && shownLines.get(i).click() != null) {
+				mod.menuToggleHand(shownCheck, shownLines.get(i).click());
+				return true;
+			}
 		}
 		return false;
 	}

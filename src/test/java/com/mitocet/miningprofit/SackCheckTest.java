@@ -223,4 +223,71 @@ class SackCheckTest {
 		assertEquals(List.of(new SackCheck.Diff("TUNGSTEN", 5, 2)),
 			s.compare(Map.of("TUNGSTEN", 1005L, "GLACITE", 50L, "ENCHANTED_BREAD", 3L), PRICES).diffs());
 	}
+
+	/** Mito, 2026-11-14: bought, put into the sacks by hand, sack message lost on a server change. */
+	@Test
+	void handPutItemsWithLostMessageCanBeTakenOffDuzelt() {
+		SackCheck s = started();
+		s.onSackMessage(List.of("  +10,000 Glacite (Mining Sack)"), PRICES);
+		s.onHandDeposit("ENCHANTED_GLACITE", 500, 1_000);
+		s.onWorldChange(5_000); // before the sack message: lost
+		assertEquals(Map.of("ENCHANTED_GLACITE", 500L), s.hand);
+		assertTrue(s.handPending.isEmpty());
+		// The API also has 2,000 mined Glacite whose message was lost.
+		SackCheck.Result r = s.compare(Map.of("TUNGSTEN", 1000L, "GLACITE", 12_050L, "ENCHANTED_GLACITE", 500L,
+			"ENCHANTED_BREAD", 3L), PRICES);
+		History.Check c = History.check(r, 0, PRICES, 10_000);
+		History.addHand(c, s, null, false, PRICES);
+		assertEquals(20_000 + 800_000, c.missingCoins(), 1e-6);
+		c.toggleHand("GLACITE");
+		// Only the hand-put 500 Enchanted Glacite goes; the lost mined Glacite is still added.
+		assertEquals(20_000, c.missingCoins(), 1e-6);
+		assertEquals(800_000, c.handOffCoins(), 1e-6);
+		assertEquals(Map.of("GLACITE", 2_000L), c.withoutHand(c.missing));
+		c.toggleHand("GLACITE");
+		assertEquals(820_000, c.missingCoins(), 1e-6);
+		// Oto düzelt: all hand-put items are off at once; a new check keeps what was clicked off.
+		History.Check auto = History.check(r, 0, PRICES, 10_000);
+		History.addHand(auto, s, null, true, PRICES);
+		assertEquals(20_000, auto.missingCoins(), 1e-6);
+		History.Check again = History.check(r, 0, PRICES, 20_000);
+		History.addHand(again, s, auto, false, PRICES);
+		assertTrue(again.handOff("GLACITE"));
+	}
+
+	@Test
+	void handPutItemsShownInASackMessageAreNotAtRisk() {
+		SackCheck s = started();
+		s.onHandDeposit("ENCHANTED_GLACITE", 500, 1_000);
+		s.onSackMessage(List.of("  +500 Enchanted Glacite (Mining Sack)"), PRICES);
+		s.onWorldChange(5_000);
+		s.tick(200_000);
+		assertTrue(s.hand.isEmpty());
+		// No message at all for a long time: at risk too.
+		s.onHandDeposit("GLACITE", 64, 300_000);
+		s.tick(300_000 + SackCheck.HAND_MS + 1);
+		assertEquals(Map.of("GLACITE", 64L), s.hand);
+		// A new base forgets them.
+		s.setBase(Map.of(), 400_000);
+		assertTrue(s.hand.isEmpty());
+	}
+
+	@Test
+	void handPutMoreThanTheFamilyWentUpAddsNothingForIt() {
+		SackCheck s = started();
+		s.onHandDeposit("ENCHANTED_GLACITE", 500, 1_000);
+		s.onWorldChange(2_000);
+		// Only 100 of them show as a difference (the rest were used meanwhile).
+		SackCheck.Result r = s.compare(Map.of("TUNGSTEN", 1100L, "GLACITE", 50L, "ENCHANTED_GLACITE", 100L,
+			"ENCHANTED_BREAD", 3L), PRICES);
+		History.Check c = History.check(r, 0, PRICES, 10_000);
+		History.addHand(c, s, null, false, PRICES);
+		c.toggleHand("GLACITE");
+		assertEquals(10_000, c.missingCoins(), 1e-6); // Tungsten only
+		List<History.Line> lines = new java.util.ArrayList<>();
+		History.handWarning(lines, c);
+		assertTrue(lines.get(1).text().contains("Enchanted Glacite: 500"));
+		History.fark(lines, c);
+		assertTrue(lines.stream().anyMatch(l -> "GLACITE".equals(l.click()) && l.text().contains("geri al")));
+	}
 }
