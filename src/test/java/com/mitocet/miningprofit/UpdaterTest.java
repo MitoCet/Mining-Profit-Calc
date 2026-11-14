@@ -69,10 +69,11 @@ class UpdaterTest {
 		writeJar(jar, "{\"id\": \"miningprofit\"}");
 		long size = Files.size(jar);
 		String sha = Updater.sha256(jar);
+		// A wrong hash must differ from the real one (writing "00" over a hash that starts with 00 did not).
 		Updater.verify(jar, new Updater.Release("1.0.23", "x.jar", "u", size, sha));
 		Updater.verify(jar, new Updater.Release("1.0.23", "x.jar", "u", -1, null));
 		assertThrows(IOException.class, () -> Updater.verify(jar, new Updater.Release("1.0.23", "x.jar", "u", size + 1, null)));
-		assertThrows(IOException.class, () -> Updater.verify(jar, new Updater.Release("1.0.23", "x.jar", "u", size, "00" + sha.substring(2))));
+		assertThrows(IOException.class, () -> Updater.verify(jar, new Updater.Release("1.0.23", "x.jar", "u", size, (sha.charAt(0) == '0' ? "1" : "0") + sha.substring(1))));
 
 		Path other = tmp.resolve("other.jar");
 		writeJar(other, "{\"id\": \"othermod\"}");
