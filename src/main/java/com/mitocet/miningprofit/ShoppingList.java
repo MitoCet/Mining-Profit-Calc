@@ -55,7 +55,7 @@ public final class ShoppingList {
 		if (text == null) throw new IllegalArgumentException("Pano boş.");
 		String t = text.trim();
 		if (!t.startsWith(PREFIX.trim())) {
-			throw new IllegalArgumentException("Panoda forge planı yok. Sitede Mining kârları → Forge planı → 'Mod için kopyala'ya bas, sonra tekrar dene.");
+			throw new IllegalArgumentException("Panoda forge planı yok. Sitede Forge planı sekmesi → 'Mod için kopyala'ya bas, sonra tekrar dene.");
 		}
 		JsonObject o;
 		try {

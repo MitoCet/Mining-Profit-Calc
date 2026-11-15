@@ -16,6 +16,8 @@ import net.minecraft.network.chat.Component;
 public final class SettingsScreen extends Screen {
 	private static final int ROW = 22;
 	private static final int H = 20;
+	/** Room above the forge plan buttons for their heading. */
+	private static final int FORGE_HEAD = 12;
 
 	private final MiningProfitClient mod;
 
@@ -112,11 +114,12 @@ public final class SettingsScreen extends Screen {
 		add(colX[1] + colW - 20, top + 5 * ROW, 20, Component.literal("+"), "30 sn artır.",
 			(b) -> run("bosta " + Math.min(3600, mod.config.idleSeconds + 30)));
 
-		// Forge plan shopping list (from the site), independent of counting.
-		add(0, 6, Component.literal("Forge planını panodan yükle"),
-			"Sitede Mining kârları → Forge planı → 'Mod için kopyala'dan sonra bas: alışveriş listesi solda açılır (/kazanc forge yukle). Sack ve storage sayıları API'den alınır (/kazanc forge yenile).",
+		// Forge plan shopping list (from the site), independent of counting. Own heading like the columns (Mito, 2026-11-15).
+		int forgeY = forgeTop();
+		add(colX[0], forgeY, colW, Component.literal("Forge planını panodan yükle"),
+			"Sitede Forge planı sekmesi → 'Mod için kopyala'dan sonra bas: alışveriş listesi solda açılır (/kazanc forge yukle). Sack ve storage sayıları API'den alınır (/kazanc forge yenile).",
 			(b) -> runInChat("forge yukle"));
-		list = add(1, 6, Component.empty(),
+		list = add(colX[1], forgeY, colW, Component.empty(),
 			"Forge planı listesini solda göster/gizle (/kazanc forge). Kazanç sayımından bağımsız. Envanter/menü açıkken menünün soluna yapışır, satıra tıkla: craft → tarif ekranı, al → Bazaar + miktar panoya.",
 			(b) -> run("forge"));
 
@@ -152,6 +155,11 @@ public final class SettingsScreen extends Screen {
 		add(colX[0] + bw + gap, y, 3 * colW + 2 * gap - bw - gap, Component.literal("Kapat"), null,
 			(b) -> Minecraft.getInstance().gui.setScreen(null));
 		refresh();
+	}
+
+	/** The forge plan buttons sit under their own heading, below the Session and box columns. */
+	private int forgeTop() {
+		return top + 6 * ROW + FORGE_HEAD;
 	}
 
 	private static Component onOff(String name, boolean on) {
@@ -202,6 +210,7 @@ public final class SettingsScreen extends Screen {
 		g.text(font, "Session", colX[0] + 2, top - 11, History.HEAD, true);
 		g.text(font, "Kutu ve sayım", colX[1] + 2, top - 11, History.HEAD, true);
 		g.text(font, "API ve diğer", colX[2] + 2, top - 11, History.HEAD, true);
+		g.text(font, "Forge planı", colX[0] + 2, forgeTop() - 11, History.HEAD, true);
 		g.text(font, mod.hasApiKey() ? "API anahtarı: §akayıtlı" : "API anahtarı: §7yok", colX[2] + 2, top, History.TEXT, true);
 	}
 }

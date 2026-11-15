@@ -635,7 +635,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 
 	// ---------- forge plan shopping list (/kazanc forge) ----------
 	private int listToggle(CommandContext<FabricClientCommandSource> c) {
-		if (shoppingList == null) return say(c, "Yüklü liste yok. Sitede Mining kârları → Forge planı → 'Mod için kopyala', sonra /kazanc forge yukle.");
+		if (shoppingList == null) return say(c, "Yüklü liste yok. Sitede Forge planı sekmesi → 'Mod için kopyala', sonra /kazanc forge yukle.");
 		config.listVisible = !config.listVisible;
 		save();
 		if (config.listVisible && !shoppingList.baseLoaded && hasKey()) loadListBase(c.getSource());
