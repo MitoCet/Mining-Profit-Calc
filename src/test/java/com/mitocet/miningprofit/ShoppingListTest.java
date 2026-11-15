@@ -136,4 +136,36 @@ class ShoppingListTest {
 		}
 		return Base64.getEncoder().encodeToString(bytes.toByteArray());
 	}
+
+	private static String right(ShoppingList l, String text) {
+		for (ShoppingList.Line x : l.lines()) if (x.text().equals(text)) return x.right();
+		throw new AssertionError(text);
+	}
+
+	@Test
+	void countsWhatIsPutIntoTheForge() {
+		ShoppingList l = ShoppingList.parse(PLAN.replace("\"Refined Tungsten\",2]", "\"Refined Tungsten\",4]"));
+		l.setBase(Map.of("ENCHANTED_GLACITE", 256L, "ENCHANTED_TUNGSTEN", 320L), Map.of());
+		assertEquals("0/4", right(l, "4× Refined Tungsten"));
+		// First look: an old Refined Tungsten job and a Mithril one were already there; slot 13 is empty.
+		assertTrue(l.onForgeMenu(Map.of(11, "Refined Tungsten", 12, "Refined Mithril")));
+		assertEquals("0/4", right(l, "4× Refined Tungsten"));
+		assertTrue(l.onForgeMenu(Map.of(11, "Refined Tungsten", 12, "Refined Mithril", 13, "Refined Tungsten", 14, "Refined Tungsten")));
+		assertEquals("2/4", right(l, "4× Refined Tungsten"));
+		assertEquals("2/5", right(l, "Forge'a koyulacak"));
+		// The materials are used up, but the rows that were enough stay ✔.
+		l.setBase(Map.of(), Map.of());
+		assertTrue(l.done(row(l, 'h', "ENCHANTED_TUNGSTEN")));
+		// The old job is claimed (slot empty), then one of the plan's goes there.
+		l.onForgeMenu(Map.of(12, "Refined Mithril", 13, "Refined Tungsten", 14, "Refined Tungsten"));
+		assertEquals("2/4", right(l, "4× Refined Tungsten"));
+		l.onForgeMenu(Map.of(11, "Refined Tungsten", 12, "Refined Mithril", 13, "Refined Tungsten", 14, "Refined Tungsten", 15, "Refined Tungsten", 16, "Glacite Amalgamation"));
+		assertEquals("4/4 ✔", right(l, "4× Refined Tungsten"));
+		assertEquals("1/1 ✔", right(l, "1× Glacite Amalgamation"));
+		assertTrue(l.allPlaced());
+		assertEquals("✔ Hepsi forge'da", l.lines().get(1).text());
+		// Done jobs claimed later do not lower it.
+		l.onForgeMenu(Map.of());
+		assertTrue(l.allPlaced());
+	}
 }

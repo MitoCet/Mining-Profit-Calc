@@ -8,9 +8,11 @@ import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,6 +51,22 @@ public final class ShoppingList {
 	private final Map<String, Long> inventory = new HashMap<>();
 	/** True once the API's sacks and storage were read for this list. */
 	public boolean baseLoaded;
+	/** What was put into the forge since this plan was loaded; kept in the config (survives restarts). */
+	public Placed placed = new Placed();
+
+	/**
+	 * Forge slots filled for the plan, read from The Forge menu (like NotEnoughUpdates' MiningOverlay, which reads
+	 * the slots whose lore says "Time Remaining:"; LGPL-3.0). Jobs already in the forge the first time the menu is
+	 * seen after loading are not counted; once such a slot is seen empty (claimed), a new job there counts.
+	 */
+	public static final class Placed {
+		/** Menu slot -> item key of the jobs already there at the first look after loading; null = forge not seen yet. */
+		public Map<String, String> base;
+		/** Item key -> how many of the plan's slots are filled (never goes down, at most the plan's count). */
+		public Map<String, Integer> done = new HashMap<>();
+		/** Material rows that had enough once: they stay ✔ after the forge has used the items up. */
+		public Set<Integer> rowsDone = new HashSet<>();
+	}
 
 	/** Reads the text the site copied. Throws IllegalArgumentException with a message for the player. */
 	public static ShoppingList parse(String text) {
@@ -179,6 +197,8 @@ public final class ShoppingList {
 
 	public boolean done(Row r) {
 		if (owned(r.id) >= r.target) return true;
+		// Putting items into the forge uses the materials up: a row that was enough stays enough.
+		if (anyPlaced() && placed.rowsDone.contains(rows.indexOf(r))) return true;
 		return !r.parent.isEmpty() && owned(r.parent) >= craftTargetOf(r.parent);
 	}
 
@@ -190,6 +210,81 @@ public final class ShoppingList {
 
 	public boolean allDone() {
 		for (Row r : rows) if (!done(r)) return false;
+		return true;
+	}
+
+	// ---------- what is in the forge ----------
+
+	private static final Pattern AMOUNT = Pattern.compile("^(?:\\d+x )?(.+?)(?: x\\d+)?$");
+
+	private static String forgeKey(String name) {
+		Matcher m = AMOUNT.matcher(Tracker.strip(name).trim());
+		return Prices.key(m.matches() ? m.group(1) : name);
+	}
+
+	/** Slots the plan wants for this item (an item may be on two forge lines). */
+	private int wanted(Forge f) {
+		int n = 0;
+		for (Forge o : forge) if (forgeKey(o.name).equals(forgeKey(f.name))) n += o.count;
+		return n;
+	}
+
+	/**
+	 * The Forge menu is open: menu slot number -> name of the item working there (lore "Time Remaining: …", done
+	 * ones too). Returns true when the progress changed (to save it).
+	 */
+	public boolean onForgeMenu(Map<Integer, String> forging) {
+		rememberRows();
+		Map<String, String> now = new HashMap<>();
+		for (Map.Entry<Integer, String> e : forging.entrySet()) now.put(String.valueOf(e.getKey()), forgeKey(e.getValue()));
+		if (placed.base == null) {
+			placed.base = new HashMap<>(now);
+			return true;
+		}
+		// An old job that was claimed (slot empty or something else in it) is not old any more.
+		boolean changed = placed.base.entrySet().removeIf((e) -> !e.getValue().equals(now.get(e.getKey())));
+		Map<String, Integer> fresh = new HashMap<>();
+		for (Map.Entry<String, String> e : now.entrySet()) {
+			if (!placed.base.containsKey(e.getKey())) fresh.merge(e.getValue(), 1, Integer::sum);
+		}
+		for (Forge f : forge) {
+			String k = forgeKey(f.name);
+			int was = placed.done.getOrDefault(k, 0);
+			int d = Math.min(wanted(f), Math.max(was, fresh.getOrDefault(k, 0)));
+			if (d != was) {
+				placed.done.put(k, d);
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
+	/** Material rows that are enough now are remembered before the forge uses them up. */
+	private void rememberRows() {
+		for (int i = 0; i < rows.size(); i++) if (owned(rows.get(i).id) >= rows.get(i).target) placed.rowsDone.add(i);
+	}
+
+	/** How many of this forge line's slots are filled. Two lines of the same item share the count in order. */
+	public int placed(Forge f) {
+		String k = forgeKey(f.name);
+		int left = placed.done.getOrDefault(k, 0);
+		for (Forge o : forge) {
+			if (!forgeKey(o.name).equals(k)) continue;
+			int here = Math.min(o.count, left);
+			if (o == f) return here;
+			left -= here;
+		}
+		return 0;
+	}
+
+	public boolean anyPlaced() {
+		for (int v : placed.done.values()) if (v > 0) return true;
+		return false;
+	}
+
+	public boolean allPlaced() {
+		if (forge.isEmpty()) return false;
+		for (Forge f : forge) if (placed(f) < f.count) return false;
 		return true;
 	}
 
@@ -272,12 +367,23 @@ public final class ShoppingList {
 
 	public List<Line> lines() {
 		List<Line> out = new ArrayList<>();
-		int slots = 0;
-		for (Forge f : forge) slots += f.count;
+		int slots = 0, in = 0;
+		for (Forge f : forge) {
+			slots += f.count;
+			in += placed(f);
+		}
+		boolean all = allPlaced();
 		out.add(new Line("Forge planı (" + slots + " slot)", "[x]", HEAD, null));
-		if (allDone()) out.add(new Line("✔ Hazır, forge'a koyabilirsin", "", GOOD, null));
-		out.add(new Line("Forge'a koyulacak", "", MUTED, null));
-		for (Forge f : forge) out.add(new Line(f.count + "× " + f.name, "", TEXT, null));
+		if (all) out.add(new Line("✔ Hepsi forge'da", "", GOOD, null));
+		else if (allDone()) out.add(new Line("✔ Hazır, forge'a koyabilirsin", "", GOOD, null));
+		out.add(new Line("Forge'a koyulacak", in + "/" + slots, all ? GOOD : MUTED, null));
+		for (Forge f : forge) {
+			int p = placed(f);
+			boolean ok = p >= f.count;
+			out.add(new Line(f.count + "× " + f.name, p + "/" + f.count + (ok ? " ✔" : ""), ok ? GOOD : p > 0 ? TODO : TEXT, null));
+		}
+		// Everything is in the forge: the materials are not needed any more.
+		if (all) return out;
 		section(out, 'c', "Craftla (tıkla: tarif)");
 		section(out, 'b', "Satın al (tıkla: Bazaar)");
 		section(out, 'x', "Sende olmalı (satılmaz)");
