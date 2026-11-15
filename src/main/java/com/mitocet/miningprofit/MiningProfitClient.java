@@ -154,6 +154,10 @@ public final class MiningProfitClient implements ClientModInitializer {
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "box"), hud::render);
 		if (config.listText != null) {
 			try { shoppingList = ShoppingList.parse(config.listText); } catch (IllegalArgumentException e) { config.listText = null; }
+			if (shoppingList != null) {
+				if (config.listPlaced != null) shoppingList.placed = config.listPlaced;
+				config.listPlaced = shoppingList.placed;
+			}
 		}
 		listHud = new ListHud(this);
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("miningprofit", "list"), listHud::render);
@@ -176,6 +180,11 @@ public final class MiningProfitClient implements ClientModInitializer {
 				ScreenEvents.remove(screen).register((s) -> {
 					if (storage.equals(storageOpen)) storageOpen = null;
 				});
+			}
+			// The Forge: what is in its slots counts for the forge plan (2/4 …) while it is open.
+			if (FORGE_MENU.equals(Tracker.strip(screen.getTitle().getString()).trim())) {
+				forgeOpen = true;
+				ScreenEvents.remove(screen).register((s) -> forgeOpen = false);
 			}
 			// While a Sack menu is open (and just after), sack changes are not mining.
 			if (Tracker.isSackMenu(screen.getTitle().getString())) {
@@ -228,6 +237,8 @@ public final class MiningProfitClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register((client) -> {
 			// Look at the inventory twice a second: items put from it into the sacks are not earnings.
 			if (ticks % 10 == 0) readInventory(client);
+			// Every tick: a claimed slot is seen empty before a new job is put there.
+			if (forgeOpen && shoppingList != null && client.player != null) readForge(client.player);
 			autoCheckTick(client);
 			// The menu key (Controls → Mining Profit Calc, unbound by default).
 			while (menuKey.consumeClick()) {
@@ -556,6 +567,33 @@ public final class MiningProfitClient implements ClientModInitializer {
 		}
 	}
 
+	/** Title of the forge menu (Dwarven Mines / Forge basecamp). */
+	static final String FORGE_MENU = "The Forge";
+	private boolean forgeOpen;
+
+	/** The Forge menu: items in its working slots are the ones whose lore says "Time Remaining:" (NEU reads it the same way). */
+	private void readForge(LocalPlayer player) {
+		Inventory inv = player.getInventory();
+		Map<Integer, String> forging = new java.util.HashMap<>();
+		boolean filled = false;
+		for (net.minecraft.world.inventory.Slot slot : player.containerMenu.slots) {
+			if (slot.container == inv) continue;
+			ItemStack stack = slot.getItem();
+			if (stack.isEmpty()) continue;
+			filled = true;
+			net.minecraft.world.item.component.ItemLore lore = stack.get(net.minecraft.core.component.DataComponents.LORE);
+			if (lore == null) continue;
+			for (Component line : lore.lines()) {
+				if (Tracker.strip(line.getString()).trim().startsWith("Time Remaining:")) {
+					forging.put(slot.index, stack.getHoverName().getString());
+					break;
+				}
+			}
+		}
+		// The menu's items arrive a moment after it opens: an empty menu is not "nothing in the forge".
+		if (filled && shoppingList.onForgeMenu(forging)) save();
+	}
+
 	// Mining items in the inventory at the last look (item id -> count), null = not known.
 	private Map<String, Long> lastMining;
 
@@ -659,6 +697,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 				}
 				shoppingList = l;
 				config.listText = text.trim();
+				config.listPlaced = l.placed;
 				config.listVisible = true;
 				save();
 				say(c, "Forge planı yüklendi: " + l.rows.size() + " satır. Liste solda; envanteri (E) ya da bir menüyü açınca menünün soluna yapışır, satırlara oradan tıkla.");
@@ -675,6 +714,7 @@ public final class MiningProfitClient implements ClientModInitializer {
 			case "sil" -> {
 				shoppingList = null;
 				config.listText = null;
+				config.listPlaced = null;
 				config.listVisible = false;
 				save();
 				return say(c, "Liste silindi.");

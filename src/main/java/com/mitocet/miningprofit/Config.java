@@ -57,6 +57,8 @@ public final class Config {
 	public String listText;
 	/** Whether the list box is shown on the left (/kazanc forge). Independent of earnings counting. */
 	public boolean listVisible;
+	/** What was put into the forge for that plan (ShoppingList.Placed); null = nothing yet. */
+	public ShoppingList.Placed listPlaced;
 	/**
 	 * The session the game ended when it was closed (or found unfinished after a crash), to tell
 	 * about it and start a new session on the next join. null = nothing to tell.
